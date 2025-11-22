@@ -7,16 +7,20 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   QueryConstraint,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Event } from '../types';
 
+// Organization ID for multi-tenant support (hardcoded for now)
+const ORGANIZATION_ID = 'tampabayheat';
+
 export const getEvents = async (constraints: QueryConstraint[] = []): Promise<Event[]> => {
   try {
     const eventsRef = collection(db, 'events');
-    const q = query(eventsRef, ...constraints);
+    const q = query(eventsRef, where('organizationId', '==', ORGANIZATION_ID), ...constraints);
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map((doc) => ({
@@ -52,6 +56,7 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
   try {
     const docRef = await addDoc(collection(db, 'events'), {
       ...eventData,
+      organizationId: ORGANIZATION_ID, // Multi-tenant support
       registered: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

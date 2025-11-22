@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { signUp, signInWithGoogle } from '../../services/auth';
+import { signUp, signInWithGoogle, logout } from '../../services/auth';
 import { Button, Input, Card, Alert } from '../../components/ui';
+import { auth } from '../../services/firebase';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const signupSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -25,6 +27,16 @@ export const SignupPage: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Sign out any existing user when the signup page loads
+  // This handles the case where a previous signup failed partway through
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      console.log('Signing out existing user before signup');
+      logout().catch(err => console.error('Error signing out:', err));
+    }
+  }, []);
+
   const {
     register,
     handleSubmit,
@@ -40,6 +52,8 @@ export const SignupPage: React.FC = () => {
       const displayName = `${data.firstName} ${data.lastName}`;
       const familyName = `The ${data.lastName} Family`;
       await signUp(data.email, data.password, displayName, familyName, data.phone);
+      
+      // Navigate to dashboard - AuthContext will handle waiting for data
       navigate('/dashboard');
     } catch (err: any) {
       // Handle Firebase auth errors with user-friendly messages
@@ -74,7 +88,16 @@ export const SignupPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8 relative">
+      {/* Home Button */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 flex items-center gap-2 text-neutral-600 hover:text-primary-600 transition-colors"
+      >
+        <ArrowLeftIcon className="h-5 w-5" />
+        <span className="font-medium">Home</span>
+      </Link>
+      
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-neutral-900">Join Tampa Bay HEAT</h2>
@@ -202,4 +225,3 @@ export const SignupPage: React.FC = () => {
     </div>
   );
 };
-

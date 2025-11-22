@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getEnrollmentsByFamily } from '../../services/enrollments';
-import { Enrollment } from '../../types';
+import { getClassById } from '../../services/classes';
+import { getSportById } from '../../services/sports';
+import { getEventById } from '../../services/events';
+import { Enrollment, Class, Sport, Event } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Spinner } from '../../components/ui';
 import {
   AcademicCapIcon,
@@ -12,9 +15,13 @@ import {
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
+interface EnrollmentWithDetails extends Enrollment {
+  itemDetails?: Class | Sport | Event;
+}
+
 export const DashboardPage: React.FC = () => {
   const { userData, familyData, loading: authLoading } = useAuth();
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [enrollments, setEnrollments] = useState<EnrollmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +33,28 @@ export const DashboardPage: React.FC = () => {
       
       try {
         const data = await getEnrollmentsByFamily(familyData.id);
-        setEnrollments(data.filter((e) => e.status === 'active'));
+        const activeEnrollments = data.filter((e) => e.status === 'active');
+        
+        // Fetch details for each enrollment
+        const enrollmentsWithDetails = await Promise.all(
+          activeEnrollments.map(async (enrollment) => {
+            let itemDetails;
+            try {
+              if (enrollment.itemType === 'class') {
+                itemDetails = await getClassById(enrollment.itemId);
+              } else if (enrollment.itemType === 'sport') {
+                itemDetails = await getSportById(enrollment.itemId);
+              } else if (enrollment.itemType === 'event') {
+                itemDetails = await getEventById(enrollment.itemId);
+              }
+            } catch (error) {
+              console.error(`Error fetching details for ${enrollment.itemType} ${enrollment.itemId}:`, error);
+            }
+            return { ...enrollment, itemDetails };
+          })
+        );
+        
+        setEnrollments(enrollmentsWithDetails);
       } catch (error) {
         console.error('Error fetching enrollments:', error);
       } finally {
@@ -50,8 +78,12 @@ export const DashboardPage: React.FC = () => {
   if (!userData || !familyData) {
     return (
       <div className="container-custom py-12">
-        <div className="text-center">
-          <p className="text-neutral-600">Unable to load user data. Please try refreshing the page.</p>
+        <div className="flex flex-col justify-center items-center min-h-[50vh]">
+          <Spinner size="lg" />
+          <h2 className="text-2xl font-bold text-neutral-900 mt-6 mb-2">Setting up your account...</h2>
+          <p className="text-neutral-600 text-center max-w-md">
+            We're preparing your dashboard. This should only take a moment.
+          </p>
         </div>
       </div>
     );
@@ -205,7 +237,9 @@ export const DashboardPage: React.FC = () => {
                         <div className="flex items-center">
                           <CheckCircleIcon className="h-5 w-5 text-green-600 mr-3" />
                           <div>
-                            <p className="font-medium text-neutral-900">Class Enrolled</p>
+                            <p className="font-medium text-neutral-900">
+                              {enrollment.itemDetails?.title || 'Class Enrolled'}
+                            </p>
                             <p className="text-sm text-neutral-600">
                               {enrollment.memberIds.length} member(s)
                             </p>
@@ -255,7 +289,9 @@ export const DashboardPage: React.FC = () => {
                         <div className="flex items-center">
                           <TrophyIcon className="h-5 w-5 text-blue-600 mr-3" />
                           <div>
-                            <p className="font-medium text-neutral-900">Sport Enrolled</p>
+                            <p className="font-medium text-neutral-900">
+                              {enrollment.itemDetails?.title || 'Sport Enrolled'}
+                            </p>
                             <p className="text-sm text-neutral-600">
                               {enrollment.memberIds.length} member(s)
                             </p>

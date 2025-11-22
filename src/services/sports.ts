@@ -7,16 +7,20 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   QueryConstraint,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Sport } from '../types';
 
+// Organization ID for multi-tenant support (hardcoded for now)
+const ORGANIZATION_ID = 'tampabayheat';
+
 export const getSports = async (constraints: QueryConstraint[] = []): Promise<Sport[]> => {
   try {
     const sportsRef = collection(db, 'sports');
-    const q = query(sportsRef, ...constraints);
+    const q = query(sportsRef, where('organizationId', '==', ORGANIZATION_ID), ...constraints);
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map((doc) => ({
@@ -54,6 +58,7 @@ export const createSport = async (sportData: Omit<Sport, 'id' | 'createdAt' | 'u
   try {
     const docRef = await addDoc(collection(db, 'sports'), {
       ...sportData,
+      organizationId: ORGANIZATION_ID, // Multi-tenant support
       enrolled: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

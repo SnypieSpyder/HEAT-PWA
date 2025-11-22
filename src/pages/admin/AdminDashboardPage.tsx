@@ -10,6 +10,7 @@ import {
   CalendarIcon,
   CurrencyDollarIcon,
   DocumentTextIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -103,11 +104,18 @@ export const AdminDashboardPage: React.FC = () => {
       color: 'indigo',
     },
     {
-      title: 'Contact Submissions',
-      description: 'View contact form submissions',
+      title: 'Volunteer Signups',
+      description: 'Manage volunteer opportunities',
       icon: DocumentTextIcon,
-      link: '/admin/contacts',
+      link: '/admin/volunteers',
       color: 'pink',
+    },
+    {
+      title: 'Manage Waitlists',
+      description: 'View and manage program waitlists',
+      icon: ClipboardDocumentListIcon,
+      link: '/admin/waitlists',
+      color: 'yellow',
     },
   ];
 
@@ -118,6 +126,7 @@ export const AdminDashboardPage: React.FC = () => {
     orange: 'bg-orange-100 text-orange-600',
     indigo: 'bg-indigo-100 text-indigo-600',
     pink: 'bg-pink-100 text-pink-600',
+    yellow: 'bg-yellow-100 text-yellow-600',
   };
 
   return (

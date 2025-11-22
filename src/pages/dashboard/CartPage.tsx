@@ -88,23 +88,27 @@ export const CartPage: React.FC = () => {
                           </span>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="flex items-center border border-neutral-300 rounded">
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="px-3 py-1 hover:bg-neutral-100"
-                            >
-                              -
-                            </button>
-                            <span className="px-3 py-1 border-x border-neutral-300">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="px-3 py-1 hover:bg-neutral-100"
-                            >
-                              +
-                            </button>
-                          </div>
+                          {item.itemType === 'membership' ? (
+                            <div className="flex items-center border border-neutral-300 rounded">
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="px-3 py-1 hover:bg-neutral-100"
+                              >
+                                -
+                              </button>
+                              <span className="px-3 py-1 border-x border-neutral-300">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="px-3 py-1 hover:bg-neutral-100"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-neutral-600 px-3 py-1">Qty: 1</span>
+                          )}
                           <button
                             onClick={() => removeFromCart(item.id)}
                             className="text-red-600 hover:text-red-700 p-2"

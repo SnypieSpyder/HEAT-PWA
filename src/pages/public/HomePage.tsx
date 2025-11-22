@@ -39,23 +39,23 @@ export const HomePage: React.FC = () => {
   return (
     <div>
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-primary-600 to-primary-700 text-white">
-        <div className="container-custom py-20 md:py-32">
+      <section className="hero-gradient-animated text-white relative overflow-hidden">
+        <div className="container-custom py-20 md:py-32 relative z-10">
           <div className="max-w-3xl">
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
               Welcome to Tampa Bay HEAT
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-primary-50">
+            <p className="text-xl md:text-2xl mb-8 opacity-90">
               Empowering homeschool families through quality education, sports, and community
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/auth/signup">
-                <Button size="lg" className="bg-white text-primary-600 hover:bg-neutral-100">
+                <Button size="lg" className="!bg-white !text-primary-600 hover:!bg-neutral-100">
                   Get Started
                 </Button>
               </Link>
               <Link to="/about">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary-600">
+                <Button size="lg" variant="outline" className="!border-white !text-white hover:!bg-white hover:!text-primary-600">
                   Learn More
                 </Button>
               </Link>

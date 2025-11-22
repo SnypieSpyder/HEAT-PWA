@@ -12,10 +12,17 @@ import {
 import { db } from './firebase';
 import { Enrollment } from '../types';
 
+// Organization ID for multi-tenant support (hardcoded for now)
+const ORGANIZATION_ID = 'tampabayheat';
+
 export const getEnrollmentsByFamily = async (familyId: string): Promise<Enrollment[]> => {
   try {
     const enrollmentsRef = collection(db, 'enrollments');
-    const q = query(enrollmentsRef, where('familyId', '==', familyId));
+    const q = query(
+      enrollmentsRef,
+      where('organizationId', '==', ORGANIZATION_ID),
+      where('familyId', '==', familyId)
+    );
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map((doc) => ({
@@ -37,6 +44,7 @@ export const getEnrollmentsByItem = async (
     const enrollmentsRef = collection(db, 'enrollments');
     const q = query(
       enrollmentsRef,
+      where('organizationId', '==', ORGANIZATION_ID),
       where('itemId', '==', itemId),
       where('itemType', '==', itemType)
     );
@@ -59,6 +67,7 @@ export const createEnrollment = async (
   try {
     const docRef = await addDoc(collection(db, 'enrollments'), {
       ...enrollmentData,
+      organizationId: ORGANIZATION_ID, // Multi-tenant support
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -100,6 +109,7 @@ export const checkEnrollmentExists = async (
     const enrollmentsRef = collection(db, 'enrollments');
     const q = query(
       enrollmentsRef,
+      where('organizationId', '==', ORGANIZATION_ID),
       where('familyId', '==', familyId),
       where('itemId', '==', itemId),
       where('itemType', '==', itemType),

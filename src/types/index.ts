@@ -1,11 +1,22 @@
+// Organization Types (Multi-tenant support)
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string;
+  primaryColor: string;
+  domain: string;
+}
+
 // User and Authentication Types
 export interface User {
   uid: string;
   email: string;
   displayName?: string;
   photoURL?: string;
-  role: 'family' | 'admin';
+  role: 'family' | 'admin' | 'instructor';
   familyId: string;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
 }
 
@@ -29,6 +40,7 @@ export interface Family {
   address?: Address;
   membershipStatus: 'active' | 'expired' | 'none';
   membershipExpiry?: Date;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +50,20 @@ export interface Address {
   city: string;
   state: string;
   zipCode: string;
+}
+
+// Membership Types
+export interface Membership {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  duration: number; // in months
+  benefits: string[];
+  status: 'active' | 'inactive';
+  organizationId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Classes, Sports, and Events Types
@@ -60,6 +86,8 @@ export interface Class {
   endDate: Date;
   status: 'active' | 'full' | 'cancelled';
   category?: string;
+  waitlistEnabled?: boolean;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +117,8 @@ export interface Sport {
   startDate: Date;
   endDate: Date;
   status: 'active' | 'full' | 'cancelled';
+  waitlistEnabled?: boolean;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +137,9 @@ export interface Event {
   imageURL?: string;
   flyerURL?: string;
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+  allowNonMembers?: boolean; // Whether non-members can purchase tickets (defaults to true)
+  waitlistEnabled?: boolean;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,10 +149,12 @@ export interface TicketType {
   name: string;
   price: number;
   available: number;
+  description?: string;
 }
 
 export interface Instructor {
   id: string;
+  userId?: string; // Reference to the user account
   firstName: string;
   lastName: string;
   email: string;
@@ -127,6 +162,21 @@ export interface Instructor {
   bio: string;
   specialties: string[];
   photoURL?: string;
+  organizationId?: string; // Multi-tenant support (instructors could be shared)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Waitlist Types
+export interface WaitlistEntry {
+  id: string;
+  itemId: string;
+  itemType: 'class' | 'sport' | 'event';
+  familyId: string;
+  memberIds: string[];
+  position: number;
+  status: 'waiting' | 'contacted' | 'expired';
+  organizationId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -140,8 +190,23 @@ export interface Enrollment {
   memberIds: string[]; // Which family members are enrolled
   status: 'active' | 'completed' | 'cancelled' | 'waitlist';
   orderId: string;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Calendar Types
+export interface CalendarItem {
+  id: string;
+  title: string;
+  type: 'event' | 'class' | 'sport';
+  date: Date;
+  startTime: string;
+  endTime: string;
+  location: string;
+  color: string;
+  isEnrolled: boolean;
+  itemData: Event | Class | Sport;
 }
 
 // Cart and Order Types
@@ -167,6 +232,7 @@ export interface Order {
   paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
   paymentIntentId?: string;
   transactionId?: string;
+  organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -252,5 +318,41 @@ export interface AnalyticsData {
   popularClasses: {itemId: string; title: string; count: number}[];
   popularSports: {itemId: string; title: string; count: number}[];
   recentOrders: Order[];
+}
+
+// Volunteer Types
+export interface VolunteerOpportunity {
+  id: string;
+  title: string;
+  description: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  location: string;
+  slots: VolunteerSlot[];
+  organizationId?: string; // Multi-tenant support
+  status: 'active' | 'completed' | 'cancelled';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VolunteerSlot {
+  id: string;
+  name: string; // e.g., "Help Set Up", "Chaperones"
+  when: string; // e.g., "20 min prior", "During event"
+  capacity: number;
+  signups: VolunteerSignup[];
+}
+
+export interface VolunteerSignup {
+  id: string;
+  slotId: string;
+  userId?: string; // If linked to registered user
+  name: string;
+  email: string;
+  phone: string;
+  addedBy: 'admin' | 'self';
+  addedByAdminId?: string;
+  createdAt: Date;
 }
 

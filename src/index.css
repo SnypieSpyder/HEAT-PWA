@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @theme {
   --color-primary-50: #fef2f2;
@@ -22,5 +23,98 @@
 @layer components {
   .container-custom {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Stripe-inspired animated gradient background with flame colors */
+  .hero-gradient-animated {
+    position: relative;
+    background: linear-gradient(135deg, 
+      #ff6b35 0%, 
+      #ff8c42 15%, 
+      #ffa552 25%, 
+      #ffbe63 35%, 
+      #ffd670 45%, 
+      #ffe66d 55%, 
+      #ffba08 65%, 
+      #f77f00 75%, 
+      #d62828 85%, 
+      #c1121f 95%
+    );
+    background-size: 400% 400%;
+    animation: gradientShift 12s ease-in-out infinite;
+  }
+
+  /* Add a second animated layer for more dynamic movement */
+  .hero-gradient-animated::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg,
+      rgba(255, 107, 53, 0.6) 0%,
+      rgba(255, 190, 99, 0.4) 20%,
+      rgba(255, 230, 109, 0.5) 40%,
+      rgba(247, 127, 0, 0.3) 60%,
+      rgba(214, 40, 40, 0.6) 80%,
+      rgba(193, 18, 31, 0.5) 100%
+    );
+    background-size: 300% 300%;
+    animation: gradientShiftSecondary 18s ease-in-out infinite reverse;
+    opacity: 0.8;
+    z-index: 0;
+  }
+
+  /* Angular diagonal cut at the bottom */
+  .hero-gradient-animated::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 150px;
+    background: rgb(250, 250, 249); /* neutral-50 */
+    clip-path: polygon(0 60%, 100% 0, 100% 100%, 0 100%);
+    z-index: 1;
+  }
+
+  @keyframes gradientShift {
+    0% {
+      background-position: 0% 50%;
+    }
+    20% {
+      background-position: 30% 60%;
+    }
+    40% {
+      background-position: 80% 40%;
+    }
+    60% {
+      background-position: 100% 70%;
+    }
+    80% {
+      background-position: 50% 30%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes gradientShiftSecondary {
+    0% {
+      background-position: 100% 0%;
+    }
+    25% {
+      background-position: 60% 40%;
+    }
+    50% {
+      background-position: 20% 80%;
+    }
+    75% {
+      background-position: 80% 60%;
+    }
+    100% {
+      background-position: 100% 0%;
+    }
   }
 }

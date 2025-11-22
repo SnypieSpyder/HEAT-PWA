@@ -1,45 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Card, CardContent, Button, Alert, Badge } from '../../components/ui';
+import { Card, CardContent, Alert, Badge } from '../../components/ui';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import { StripePaymentForm } from '../../components/checkout';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+// Only load Stripe if key is configured
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, familyData } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
   const [error, setError] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  if (!currentUser || cartItems.length === 0) {
-    navigate('/cart');
+  // Redirect to cart if not logged in or cart is empty (but not during payment processing)
+  useEffect(() => {
+    if (!currentUser || (cartItems.length === 0 && !isProcessingPayment)) {
+      navigate('/cart');
+    }
+  }, [currentUser, cartItems.length, isProcessingPayment, navigate]);
+
+  // Don't render if we don't have the necessary data
+  if (!currentUser || !familyData || (cartItems.length === 0 && !isProcessingPayment)) {
     return null;
   }
 
   const processingFee = cartTotal * 0.03;
   const total = cartTotal + processingFee;
 
-  const handleSubmitOrder = async () => {
-    try {
-      setError('');
-      setIsProcessing(true);
-
-      // TODO: Implement actual payment processing
-      // For now, simulate success
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      clearCart();
-      navigate('/dashboard/orders?success=true');
-    } catch (err: any) {
-      setError(err.message || 'Payment failed. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
+  const handlePaymentSuccess = (orderId: string) => {
+    setIsProcessingPayment(true);
+    clearCart();
+    // Use setTimeout to ensure cart clears before navigation
+    setTimeout(() => {
+      navigate(`/enrollments?success=true&orderId=${orderId}`);
+    }, 100);
   };
 
   return (
@@ -80,59 +81,21 @@ export const CheckoutPage: React.FC = () => {
                   Payment Method
                 </h2>
 
-                <div className="space-y-3">
-                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:border-primary-600 transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="stripe"
-                      checked={paymentMethod === 'stripe'}
-                      onChange={() => setPaymentMethod('stripe')}
-                      className="mr-3"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-neutral-900">Credit/Debit Card</p>
-                      <p className="text-sm text-neutral-600">
-                        Pay securely with Stripe
-                      </p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:border-primary-600 transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="paypal"
-                      checked={paymentMethod === 'paypal'}
-                      onChange={() => setPaymentMethod('paypal')}
-                      className="mr-3"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-neutral-900">PayPal</p>
-                      <p className="text-sm text-neutral-600">
-                        Pay with your PayPal account
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {paymentMethod === 'stripe' && (
-                  <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
-                    <p className="text-sm text-neutral-600 mb-4">
-                      Stripe payment integration will be configured with your account.
-                    </p>
+                {stripePromise ? (
+                  <div className="mt-6">
                     <Elements stripe={stripePromise}>
-                      <div className="text-center text-neutral-500">
-                        Payment form will appear here
-                      </div>
+                      <StripePaymentForm
+                        amount={total}
+                        cartItems={cartItems}
+                        familyId={familyData.id}
+                        onSuccess={handlePaymentSuccess}
+                      />
                     </Elements>
                   </div>
-                )}
-
-                {paymentMethod === 'paypal' && (
-                  <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
-                    <p className="text-sm text-neutral-600">
-                      PayPal payment integration will be configured with your account.
+                ) : (
+                  <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">
+                      Stripe is not configured. Please add your Stripe publishable key to the environment variables.
                     </p>
                   </div>
                 )}
@@ -142,14 +105,25 @@ export const CheckoutPage: React.FC = () => {
             {/* Terms */}
             <Card>
               <CardContent>
-                <label className="flex items-start">
-                  <input type="checkbox" className="mt-1 mr-3" required />
+                <label className="flex items-start cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="mt-1 mr-3" 
+                    checked={agreeToTerms}
+                    onChange={(e) => setAgreeToTerms(e.target.checked)}
+                    required 
+                  />
                   <p className="text-sm text-neutral-600">
                     I agree to the terms and conditions and understand that all sales are
                     final. Refund requests must be submitted in writing and are subject to
                     approval.
                   </p>
                 </label>
+                {!agreeToTerms && (
+                  <p className="text-xs text-red-600 mt-2">
+                    You must agree to the terms and conditions to complete your purchase.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -198,13 +172,6 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
-                <Button
-                  className="w-full"
-                  onClick={handleSubmitOrder}
-                  isLoading={isProcessing}
-                >
-                  Complete Purchase
-                </Button>
 
                 <div className="mt-6 pt-6 border-t border-neutral-200 text-xs text-neutral-600">
                   <p className="mb-2">

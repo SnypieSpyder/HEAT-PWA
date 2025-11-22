@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { OrganizationProvider } from './contexts/OrganizationContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { Layout } from './components/layout/Layout';
@@ -13,7 +14,12 @@ import { StatementOfFaithPage } from './pages/public/StatementOfFaithPage';
 import { ClassesPage } from './pages/public/ClassesPage';
 import { ClassDetailPage } from './pages/public/ClassDetailPage';
 import { SportsPage } from './pages/public/SportsPage';
+import { SportDetailPage } from './pages/public/SportDetailPage';
 import { EventsPage } from './pages/public/EventsPage';
+import { EventDetailPage } from './pages/public/EventDetailPage';
+import { VolunteersPage } from './pages/public/VolunteersPage';
+import { CalendarPage } from './pages/public/CalendarPage';
+import { MembershipPage } from './pages/public/MembershipPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
@@ -25,16 +31,25 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { FamilyProfilePage } from './pages/dashboard/FamilyProfilePage';
 import { CartPage } from './pages/dashboard/CartPage';
 import { CheckoutPage } from './pages/dashboard/CheckoutPage';
+import { EnrollmentsPage } from './pages/dashboard/EnrollmentsPage';
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
+import { AdminClassesPage } from './pages/admin/AdminClassesPage';
+import { AdminSportsPage } from './pages/admin/AdminSportsPage';
+import { AdminEventsPage } from './pages/admin/AdminEventsPage';
+import { AdminInstructorsPage } from './pages/admin/AdminInstructorsPage';
+import { AdminFamiliesPage } from './pages/admin/AdminFamiliesPage';
+import { AdminVolunteersPage } from './pages/admin/AdminVolunteersPage';
+import { AdminWaitlistsPage } from './pages/admin/AdminWaitlistsPage';
 
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <CartProvider>
-          <Routes>
+      <OrganizationProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Routes>
             {/* Public Routes */}
             <Route
               path="/"
@@ -101,10 +116,50 @@ function App() {
               }
             />
             <Route
+              path="/sports/:sportId"
+              element={
+                <Layout>
+                  <SportDetailPage />
+                </Layout>
+              }
+            />
+            <Route
               path="/events"
               element={
                 <Layout>
                   <EventsPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/events/:eventId"
+              element={
+                <Layout>
+                  <EventDetailPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/volunteers"
+              element={
+                <Layout>
+                  <VolunteersPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/calendar"
+              element={
+                <Layout>
+                  <CalendarPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/membership"
+              element={
+                <Layout>
+                  <MembershipPage />
                 </Layout>
               }
             />
@@ -155,6 +210,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/enrollments"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <EnrollmentsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected Admin Routes */}
             <Route
@@ -167,12 +232,83 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/classes"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminClassesPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/sports"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminSportsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/events"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminEventsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/instructors"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminInstructorsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/families"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminFamiliesPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/volunteers"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminVolunteersPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/waitlists"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminWaitlistsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </CartProvider>
-      </AuthProvider>
+            </Routes>
+          </CartProvider>
+        </AuthProvider>
+      </OrganizationProvider>
     </Router>
   );
 }

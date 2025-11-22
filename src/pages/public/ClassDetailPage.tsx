@@ -2,17 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getClassById } from '../../services/classes';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
 import { Class } from '../../types';
-import { Card, CardContent, Badge, Button, Spinner, Alert } from '../../components/ui';
-import { CalendarIcon, MapPinIcon, UserIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { Card, CardContent, Badge, Button, Spinner, Alert, LocationMapModal, MemberSelectionModal } from '../../components/ui';
+import { CalendarIcon, MapPinIcon, UserIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { joinWaitlist, checkWaitlistStatus } from '../../services/waitlist';
 
 export const ClassDetailPage: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, familyData } = useAuth();
+  const { addToCart } = useCart();
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
+  const [waitlistStatus, setWaitlistStatus] = useState<any>(null);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
 
   useEffect(() => {
     const fetchClass = async () => {
@@ -21,6 +30,12 @@ export const ClassDetailPage: React.FC = () => {
       try {
         const data = await getClassById(classId);
         setClassData(data);
+
+        // Check if user is on waitlist
+        if (familyData) {
+          const status = await checkWaitlistStatus(classId, 'class', familyData.id);
+          setWaitlistStatus(status);
+        }
       } catch (err) {
         setError('Failed to load class details');
       } finally {
@@ -29,15 +44,66 @@ export const ClassDetailPage: React.FC = () => {
     };
 
     fetchClass();
-  }, [classId]);
+  }, [classId, familyData]);
 
   const handleAddToCart = () => {
     if (!currentUser) {
       navigate('/auth/login');
       return;
     }
-    // Add to cart logic will be implemented in cart context
-    alert('Add to cart functionality coming soon!');
+
+    if (!familyData || familyData.members.length === 0) {
+      setError('Please add family members to your profile before enrolling in classes.');
+      return;
+    }
+
+    setShowMemberModal(true);
+  };
+
+  const handleJoinWaitlist = () => {
+    if (!currentUser) {
+      navigate('/auth/login');
+      return;
+    }
+
+    if (!familyData || familyData.members.length === 0) {
+      setError('Please add family members to your profile before joining the waitlist.');
+      return;
+    }
+
+    setShowWaitlistModal(true);
+  };
+
+  const handleWaitlistConfirm = async (selectedMemberIds: string[]) => {
+    if (!classId || !familyData) return;
+
+    setJoiningWaitlist(true);
+    try {
+      await joinWaitlist(classId, 'class', familyData.id, selectedMemberIds);
+      const status = await checkWaitlistStatus(classId, 'class', familyData.id);
+      setWaitlistStatus(status);
+      setShowWaitlistModal(false);
+    } catch (err) {
+      setError('Failed to join waitlist. Please try again.');
+    } finally {
+      setJoiningWaitlist(false);
+    }
+  };
+
+  const handleMemberSelection = (selectedMemberIds: string[]) => {
+    if (!classData || !classId) return;
+
+    addToCart({
+      itemId: classId,
+      itemType: 'class',
+      title: classData.title,
+      price: classData.pricing,
+      quantity: selectedMemberIds.length,
+      memberIds: selectedMemberIds,
+    });
+
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 3000);
   };
 
   if (loading) {
@@ -60,6 +126,7 @@ export const ClassDetailPage: React.FC = () => {
 
   const spotsRemaining = classData.capacity - classData.enrolled;
   const isFull = spotsRemaining <= 0;
+  const isMember = familyData?.membershipStatus === 'active';
 
   return (
     <div className="container-custom py-12">
@@ -114,7 +181,12 @@ export const ClassDetailPage: React.FC = () => {
                       <MapPinIcon className="h-6 w-6 text-primary-600 mr-3 flex-shrink-0 mt-1" />
                       <div>
                         <p className="font-medium text-neutral-900">Location</p>
-                        <p className="text-neutral-600">{classData.schedule.location}</p>
+                        <button
+                          onClick={() => setShowMapModal(true)}
+                          className="text-neutral-600 hover:text-primary-600 hover:underline text-left transition-colors"
+                        >
+                          {classData.schedule.location}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -190,12 +262,69 @@ export const ClassDetailPage: React.FC = () => {
                   </div>
                 </div>
 
+                {!isMember && currentUser && (
+                  <Alert 
+                    type="warning" 
+                    message="Active membership required to enroll in classes" 
+                    className="mb-3"
+                  />
+                )}
+
+                {waitlistStatus ? (
+                  <div className="w-full mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+                    <div className="flex items-center justify-center mb-1">
+                      <CheckCircleIcon className="h-5 w-5 mr-2" />
+                      <span className="font-medium">On Waitlist</span>
+                    </div>
+                    <p className="text-sm text-center">Position #{waitlistStatus.position}</p>
+                  </div>
+                ) : addedToCart ? (
+                  <div className="w-full mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center text-green-700">
+                    <CheckCircleIcon className="h-5 w-5 mr-2" />
+                    <span className="font-medium">Added to Cart!</span>
+                  </div>
+                ) : (
+                  <>
+                    {!isMember && (
+                      <Alert type="warning" message="Membership required to enroll in classes." className="mb-3" />
+                    )}
+                    {isFull && !classData?.waitlistEnabled && (
+                      <Alert type="info" message="This class is currently full." className="mb-3" />
+                    )}
+                    
+                    {!isFull && (
+                      <Button
+                        className="w-full mb-3"
+                        onClick={handleAddToCart}
+                        disabled={!isMember}
+                      >
+                        {!isMember ? 'Membership Required' : 'Add to Cart'}
+                      </Button>
+                    )}
+
+                    {isFull && classData?.waitlistEnabled && isMember && (
+                      <Button
+                        className="w-full mb-3"
+                        onClick={handleJoinWaitlist}
+                        disabled={joiningWaitlist}
+                        variant="outline"
+                      >
+                        {joiningWaitlist ? 'Joining...' : 'Join Waitlist'}
+                      </Button>
+                    )}
+
+                    {isFull && classData?.waitlistEnabled && !isMember && (
+                      <Alert type="warning" message="Membership required to join the waitlist." className="mb-3" />
+                    )}
+                  </>
+                )}
+
                 <Button
+                  variant="outline"
                   className="w-full mb-3"
-                  onClick={handleAddToCart}
-                  disabled={isFull}
+                  onClick={() => navigate('/cart')}
                 >
-                  {isFull ? 'Class Full' : 'Add to Cart'}
+                  View Cart
                 </Button>
 
                 {isFull && (
@@ -217,6 +346,39 @@ export const ClassDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Location Map Modal */}
+      {classData.schedule.location && (
+        <LocationMapModal
+          isOpen={showMapModal}
+          onClose={() => setShowMapModal(false)}
+          location={classData.schedule.location}
+          title={classData.title}
+        />
+      )}
+
+      {/* Member Selection Modal */}
+      {familyData && (
+        <MemberSelectionModal
+          isOpen={showMemberModal}
+          onClose={() => setShowMemberModal(false)}
+          members={familyData.members}
+          onConfirm={handleMemberSelection}
+          title={classData?.title || 'Class'}
+          itemType="class"
+        />
+      )}
+
+      {familyData && (
+        <MemberSelectionModal
+          isOpen={showWaitlistModal}
+          onClose={() => setShowWaitlistModal(false)}
+          members={familyData.members}
+          onConfirm={handleWaitlistConfirm}
+          title={`${classData?.title || 'Class'} - Join Waitlist`}
+          itemType="class"
+        />
+      )}
     </div>
   );
 };

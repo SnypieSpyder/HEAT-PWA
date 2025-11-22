@@ -105,13 +105,15 @@ export const AddEditMemberModal: React.FC<AddEditMemberModalProps> = ({
       }
 
       const memberData: Partial<FamilyMember> = {
-        ...data,
-        id: member?.id,
-        photoURL,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
-        email: data.email || undefined,
-        phone: data.phone || undefined,
-        gradeLevel: data.gradeLevel || undefined,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        relationship: data.relationship,
+        ...(member?.id && { id: member.id }),
+        ...(photoURL && { photoURL }),
+        ...(data.dateOfBirth && { dateOfBirth: new Date(data.dateOfBirth) }),
+        ...(data.email && { email: data.email }),
+        ...(data.phone && { phone: data.phone }),
+        ...(data.gradeLevel && { gradeLevel: data.gradeLevel }),
       };
 
       await onSave(memberData);
@@ -212,12 +214,34 @@ export const AddEditMemberModal: React.FC<AddEditMemberModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="Grade Level"
-            {...register('gradeLevel')}
-            error={errors.gradeLevel?.message}
-            placeholder="e.g., 5th Grade"
-          />
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Grade Level
+            </label>
+            <select
+              {...register('gradeLevel')}
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Select Grade Level</option>
+              <option value="Pre-K">Pre-K</option>
+              <option value="Kindergarten">Kindergarten</option>
+              <option value="1st Grade">1st Grade</option>
+              <option value="2nd Grade">2nd Grade</option>
+              <option value="3rd Grade">3rd Grade</option>
+              <option value="4th Grade">4th Grade</option>
+              <option value="5th Grade">5th Grade</option>
+              <option value="6th Grade">6th Grade</option>
+              <option value="7th Grade">7th Grade</option>
+              <option value="8th Grade">8th Grade</option>
+              <option value="9th Grade">9th Grade</option>
+              <option value="10th Grade">10th Grade</option>
+              <option value="11th Grade">11th Grade</option>
+              <option value="12th Grade">12th Grade</option>
+            </select>
+            {errors.gradeLevel && (
+              <p className="mt-1 text-sm text-red-600">{errors.gradeLevel.message}</p>
+            )}
+          </div>
 
           <Input
             label="Date of Birth"

@@ -10,6 +10,7 @@ interface AuthContextType {
   familyData: Family | null;
   loading: boolean;
   isAdmin: boolean;
+  refreshFamilyData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   familyData: null,
   loading: true,
   isAdmin: false,
+  refreshFamilyData: async () => {},
 });
 
 export const useAuth = () => {
@@ -39,21 +41,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
 
       if (user) {
-        try {
-          // Fetch user data
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const userDataFromDb = userDoc.data() as User;
-            setUserData(userDataFromDb);
+        // Retry logic for newly created users
+        const maxRetries = 10;
+        const retryDelay = 500; // ms
+        
+        let retryCount = 0;
+        let userDataFetched = false;
 
-            // Fetch family data
-            const familyDoc = await getDoc(doc(db, 'families', userDataFromDb.familyId));
-            if (familyDoc.exists()) {
-              setFamilyData(familyDoc.data() as Family);
+        while (retryCount < maxRetries && !userDataFetched) {
+          try {
+            // Fetch user data
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            
+            if (userDoc.exists()) {
+              const userDataFromDb = { uid: user.uid, ...userDoc.data() } as User;
+              setUserData(userDataFromDb);
+
+              // Fetch family data
+              if (userDataFromDb.familyId) {
+                const familyDoc = await getDoc(doc(db, 'families', userDataFromDb.familyId));
+                
+                if (familyDoc.exists()) {
+                  const data = familyDoc.data();
+                  const familyDataFromDb = { 
+                    id: familyDoc.id, 
+                    ...data,
+                    membershipExpiry: data.membershipExpiry?.toDate ? data.membershipExpiry.toDate() : data.membershipExpiry,
+                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+                    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+                  } as Family;
+                  setFamilyData(familyDataFromDb);
+                  userDataFetched = true;
+                } else {
+                  console.log(`Family document not found (attempt ${retryCount + 1}/${maxRetries}), retrying...`);
+                  await new Promise(resolve => setTimeout(resolve, retryDelay));
+                  retryCount++;
+                }
+              } else {
+                userDataFetched = true; // User exists but no family
+              }
+            } else {
+              console.log(`User document not found (attempt ${retryCount + 1}/${maxRetries}), retrying...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+              retryCount++;
+            }
+          } catch (error) {
+            console.error('Error fetching user data:', error);
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
             }
           }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+        }
+
+        if (!userDataFetched) {
+          console.error('Failed to load user data after maximum retries');
         }
       } else {
         setUserData(null);
@@ -68,12 +110,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAdmin = userData?.role === 'admin';
 
+  const refreshFamilyData = async () => {
+    if (userData?.familyId) {
+      try {
+        const familyDoc = await getDoc(doc(db, 'families', userData.familyId));
+        if (familyDoc.exists()) {
+          const data = familyDoc.data();
+          const familyDataFromDb = { 
+            id: familyDoc.id, 
+            ...data,
+            membershipExpiry: data.membershipExpiry?.toDate ? data.membershipExpiry.toDate() : data.membershipExpiry,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+          } as Family;
+          setFamilyData(familyDataFromDb);
+        }
+      } catch (error) {
+        console.error('Error refreshing family data:', error);
+      }
+    }
+  };
+
   const value: AuthContextType = {
     currentUser,
     userData,
     familyData,
     loading,
     isAdmin,
+    refreshFamilyData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

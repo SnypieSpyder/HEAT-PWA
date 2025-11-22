@@ -1,30 +1,36 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCollection } from '../../hooks/useFirestore';
+import { useOrganization } from '../../contexts/OrganizationContext';
 import { Event } from '../../types';
 import { Card, Badge, Button, Spinner } from '../../components/ui';
 import { CalendarIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export const EventsPage: React.FC = () => {
-  const { data: events, loading } = useCollection<Event>('events');
-  const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming');
+  const { organization } = useOrganization();
+  const { data: rawEvents, loading } = useCollection<Event>('events');
 
-  const now = new Date();
-  const filteredEvents = events
-    .filter((event) => {
-      if (filter === 'upcoming') {
-        return new Date(event.date) >= now;
-      } else {
-        return new Date(event.date) < now;
-      }
-    })
-    .sort((a, b) => {
-      if (filter === 'upcoming') {
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
-      } else {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      }
-    });
+  // Convert Firestore Timestamps to Date objects and filter by organization
+  const events = useMemo(() => {
+    const convertedEvents = rawEvents.map(event => ({
+      ...event,
+      date: event.date instanceof Date ? event.date : (event.date as any)?.toDate?.() || new Date(event.date),
+      createdAt: event.createdAt instanceof Date ? event.createdAt : (event.createdAt as any)?.toDate?.() || new Date(),
+      updatedAt: event.updatedAt instanceof Date ? event.updatedAt : (event.updatedAt as any)?.toDate?.() || new Date(),
+    }));
+    
+    // Filter by organization (including events without organizationId for backward compatibility)
+    return convertedEvents.filter(event => 
+      !event.organizationId || event.organizationId === organization.id
+    );
+  }, [rawEvents, organization.id]);
+
+  // Filter to show only upcoming and ongoing events based on status field
+  const upcomingEvents = useMemo(() => {
+    return events
+      .filter((event) => event.status === 'upcoming' || event.status === 'ongoing')
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [events]);
 
   return (
     <div className="container-custom py-12">
@@ -36,50 +42,23 @@ export const EventsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="mb-8 flex justify-center">
-          <div className="inline-flex rounded-lg border border-neutral-300 p-1">
-            <button
-              onClick={() => setFilter('upcoming')}
-              className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-                filter === 'upcoming'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-700 hover:bg-neutral-100'
-              }`}
-            >
-              Upcoming
-            </button>
-            <button
-              onClick={() => setFilter('past')}
-              className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-                filter === 'past'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-700 hover:bg-neutral-100'
-              }`}
-            >
-              Past Events
-            </button>
-          </div>
-        </div>
-
         {loading && (
           <div className="flex justify-center py-12">
             <Spinner size="lg" />
           </div>
         )}
 
-        {!loading && filteredEvents.length === 0 && (
+        {!loading && upcomingEvents.length === 0 && (
           <div className="text-center py-12">
             <p className="text-neutral-600">
-              {filter === 'upcoming'
-                ? 'No upcoming events at this time. Check back soon!'
-                : 'No past events to display.'}
+              No upcoming events at this time. Check back soon!
             </p>
           </div>
         )}
 
-        {!loading && filteredEvents.length > 0 && (
+        {!loading && upcomingEvents.length > 0 && (
           <div className="space-y-6">
-            {filteredEvents.map((event) => (
+            {upcomingEvents.map((event) => (
               <Card key={event.id} hover>
                 <div className="flex flex-col md:flex-row">
                   {event.imageURL && (
@@ -111,7 +90,7 @@ export const EventsPage: React.FC = () => {
                       <div className="flex items-center text-neutral-600">
                         <CalendarIcon className="h-5 w-5 mr-2 text-primary-600" />
                         <span className="text-sm">
-                          {new Date(event.date).toLocaleDateString()}
+                          {event.date.toLocaleDateString()}
                         </span>
                       </div>
                       <div className="flex items-center text-neutral-600">
