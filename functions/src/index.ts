@@ -141,7 +141,7 @@ export const createOrder = onCall({
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
 
-  const { paymentIntentId, cartItems, familyId, subtotal, total } = request.data;
+  const { paymentIntentId, cartItems, familyId } = request.data;
 
   try {
     // Verify payment was successful with Stripe
@@ -154,11 +154,27 @@ export const createOrder = onCall({
       );
     }
 
+    // SECURITY: Verify the payment amount matches what we expect
+    const calculatedTotal = await calculateOrderAmount(cartItems);
+    const paymentAmount = paymentIntent.amount / 100; // Stripe uses cents
+    
+    if (Math.abs(paymentAmount - calculatedTotal) > 0.01) {
+      console.error('Payment amount mismatch:', { paymentAmount, calculatedTotal });
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Payment amount does not match order total'
+      );
+    }
+
     // Verify the user owns this family
     const userDoc = await admin.firestore().collection('users').doc(request.auth.uid).get();
     if (!userDoc.exists || userDoc.data()?.familyId !== familyId) {
       throw new functions.https.HttpsError('permission-denied', 'Invalid family ID');
     }
+
+    // SECURITY: Recalculate amounts server-side instead of trusting client
+    const calculatedSubtotal = calculatedTotal / 1.03; // Remove processing fee
+    const processingFee = calculatedTotal - calculatedSubtotal;
 
     // Create order in Firestore
     const orderData = {
@@ -171,9 +187,10 @@ export const createOrder = onCall({
         quantity: item.quantity || 1,
         memberIds: item.memberIds || [],
       })),
-      subtotal,
+      subtotal: calculatedSubtotal,
       discount: 0,
-      total,
+      processingFee: processingFee,
+      total: calculatedTotal,
       paymentMethod: 'stripe',
       paymentStatus: 'completed',
       paymentIntentId: paymentIntent.id,

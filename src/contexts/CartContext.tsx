@@ -51,26 +51,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addToCart = (item: Omit<CartItem, 'id'>) => {
     const id = `${item.itemId}_${item.memberIds.join('_')}`;
     
-    // For classes, sports, and events, always set quantity to 1
-    const quantity = ['class', 'sport', 'event'].includes(item.itemType) ? 1 : item.quantity;
-    
     // Check if item already exists
     const existingItem = cartItems.find((i) => i.id === id);
     
     if (existingItem) {
-      // For non-membership items, don't increment quantity - they're already in cart
+      // For classes, sports, and events, don't increment quantity - they're already in cart
       if (['class', 'sport', 'event'].includes(item.itemType)) {
         return; // Don't add duplicate
       }
       // Update quantity for memberships
       setCartItems((prev) =>
         prev.map((i) =>
-          i.id === id ? { ...i, quantity: i.quantity + quantity } : i
+          i.id === id ? { ...i, quantity: i.quantity + item.quantity } : i
         )
       );
     } else {
-      // Add new item with enforced quantity
-      setCartItems((prev) => [...prev, { ...item, id, quantity }]);
+      // Add new item with the provided quantity (number of members)
+      setCartItems((prev) => [...prev, { ...item, id, quantity: item.quantity }]);
     }
   };
 

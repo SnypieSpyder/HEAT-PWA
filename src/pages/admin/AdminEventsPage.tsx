@@ -5,8 +5,9 @@ import { EventForm } from '../../components/admin/forms/EventForm';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Alert';
-import { Event } from '../../types';
+import { Event, VolunteerSlot } from '../../types';
 import { getEvents, createEvent, updateEvent, deleteEvent } from '../../services/events';
+import { getVolunteerOpportunitiesByEventId } from '../../services/volunteers';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 export const AdminEventsPage: React.FC = () => {
@@ -14,6 +15,7 @@ export const AdminEventsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | undefined>();
+  const [editingVolunteerSlots, setEditingVolunteerSlots] = useState<VolunteerSlot[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; eventId: string | null }>({
     show: false,
     eventId: null,
@@ -58,6 +60,7 @@ export const AdminEventsPage: React.FC = () => {
       fetchEvents();
       setShowForm(false);
       setEditingEvent(undefined);
+      setEditingVolunteerSlots([]);
     } catch (error) {
       console.error('Error updating event:', error);
       setAlert({ type: 'error', message: 'Failed to update event' });
@@ -78,13 +81,32 @@ export const AdminEventsPage: React.FC = () => {
     }
   };
 
-  const openEditForm = (event: Event) => {
+  const openEditForm = async (event: Event) => {
     setEditingEvent(event);
+    
+    // Fetch volunteer opportunities if volunteers are enabled
+    if (event.volunteerEnabled) {
+      try {
+        const opportunities = await getVolunteerOpportunitiesByEventId(event.id);
+        if (opportunities.length > 0) {
+          setEditingVolunteerSlots(opportunities[0].slots || []);
+        } else {
+          setEditingVolunteerSlots([]);
+        }
+      } catch (error) {
+        console.error('Error fetching volunteer slots:', error);
+        setEditingVolunteerSlots([]);
+      }
+    } else {
+      setEditingVolunteerSlots([]);
+    }
+    
     setShowForm(true);
   };
 
   const openCreateForm = () => {
     setEditingEvent(undefined);
+    setEditingVolunteerSlots([]);
     setShowForm(true);
   };
 
@@ -189,9 +211,11 @@ export const AdminEventsPage: React.FC = () => {
           onClose={() => {
             setShowForm(false);
             setEditingEvent(undefined);
+            setEditingVolunteerSlots([]);
           }}
           onSubmit={editingEvent ? handleUpdate : handleCreate}
           initialData={editingEvent}
+          initialVolunteerSlots={editingVolunteerSlots}
           title={editingEvent ? 'Edit Event' : 'Create New Event'}
         />
 

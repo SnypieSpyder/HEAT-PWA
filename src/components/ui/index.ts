@@ -4,6 +4,7 @@ export { ConfirmModal } from './ConfirmModal';
 export { CalendarEventModal } from './CalendarEventModal';
 export { LocationMapModal } from './LocationMapModal';
 export { MemberSelectionModal } from './MemberSelectionModal';
+export { EventVolunteerModal } from './EventVolunteerModal';
 export { RangeSlider } from './RangeSlider';
 export { Input } from './Input';
 export { Modal } from './Modal';

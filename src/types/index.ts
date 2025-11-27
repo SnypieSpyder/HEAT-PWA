@@ -139,6 +139,9 @@ export interface Event {
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   allowNonMembers?: boolean; // Whether non-members can purchase tickets (defaults to true)
   waitlistEnabled?: boolean;
+  volunteerEnabled?: boolean; // Whether volunteer opportunities are enabled for this event
+  volunteerRequired?: boolean; // Whether volunteering is required for event participants
+  volunteerListInTab?: boolean; // Whether to list volunteer opportunities in the general volunteer tab
   organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
@@ -283,6 +286,71 @@ export interface Announcement {
   createdBy: string;
 }
 
+// Custom Page Types
+export interface Page {
+  id: string;
+  title: string;
+  slug: string;
+  parentId?: string;          // ID of parent page (null for root pages)
+  fullSlug?: string;          // Complete path (e.g., "resources/dual-enrollment")
+  category?: string;          // For filtering (e.g., "Academic", "Sports", "Events")
+  tags?: string[];            // For search/filtering
+  metaDescription?: string;
+  status: 'draft' | 'published';
+  showInNav: boolean;
+  navOrder: number;
+  blocks: ContentBlock[];
+  organizationId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+  updatedBy: string;
+}
+
+export interface ContentBlock {
+  id: string;
+  type: 'text' | 'image' | 'gallery' | 'hero' | 'twoColumn';
+  content: TextBlockContent | ImageBlockContent | GalleryBlockContent | HeroBlockContent | TwoColumnBlockContent;
+  order: number;
+}
+
+export interface TextBlockContent {
+  text: string;
+  alignment?: 'left' | 'center' | 'right';
+}
+
+export interface ImageBlockContent {
+  url: string;
+  caption?: string;
+  alt?: string;
+}
+
+export interface GalleryBlockContent {
+  images: {
+    url: string;
+    caption?: string;
+    alt?: string;
+  }[];
+}
+
+export interface HeroBlockContent {
+  backgroundUrl: string;
+  title: string;
+  subtitle?: string;
+  buttonText?: string;
+  buttonLink?: string;
+  overlayColor?: string;     // Hex color for overlay (default: #000000)
+  overlayOpacity?: number;   // 0-100 (default: 40)
+}
+
+export interface TwoColumnBlockContent {
+  leftContent: string;
+  rightContent: string;
+  imagePosition?: 'left' | 'right';
+  imageUrl?: string;
+}
+
+// Legacy - keeping for backward compatibility
 export interface PageContent {
   id: string;
   pageName: string;
@@ -330,6 +398,8 @@ export interface VolunteerOpportunity {
   endTime: string;
   location: string;
   slots: VolunteerSlot[];
+  eventId?: string; // Link to associated event if this is an event volunteer opportunity
+  listInTab?: boolean; // Whether to show this opportunity in the general volunteer tab
   organizationId?: string; // Multi-tenant support
   status: 'active' | 'completed' | 'cancelled';
   createdAt: Date;

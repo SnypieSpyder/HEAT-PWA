@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   addDoc,
-  getDoc,
   getDocs,
   updateDoc,
   deleteDoc,
@@ -198,8 +197,8 @@ export const removeFromWaitlist = async (entryId: string): Promise<void> => {
  * Takes an array of entry IDs in the desired order
  */
 export const reorderWaitlist = async (
-  itemId: string,
-  itemType: 'class' | 'sport' | 'event',
+  _itemId: string,
+  _itemType: 'class' | 'sport' | 'event',
   orderedEntryIds: string[]
 ): Promise<void> => {
   try {

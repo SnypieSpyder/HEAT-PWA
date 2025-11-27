@@ -4,4 +4,5 @@ export { EventForm } from './EventForm';
 export { InstructorForm } from './InstructorForm';
 export { VolunteerOpportunityForm } from './VolunteerOpportunityForm';
 export { VolunteerSignupForm } from './VolunteerSignupForm';
+export { PageBuilderForm } from './PageBuilderForm';
 

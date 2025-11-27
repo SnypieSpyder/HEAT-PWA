@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Spinner, Alert, Badge, Button } from '../../components/ui';
-import { getAllWaitlistEntries, getWaitlistByItem, removeFromWaitlist, reorderWaitlist } from '../../services/waitlist';
+import { getAllWaitlistEntries, removeFromWaitlist, reorderWaitlist } from '../../services/waitlist';
 import { getClassById } from '../../services/classes';
 import { getSportById } from '../../services/sports';
 import { getEventById } from '../../services/events';
-import { WaitlistEntry, Class, Sport, Event, Family } from '../../types';
-import { collection, doc, getDoc } from 'firebase/firestore';
+import { WaitlistEntry, Family } from '../../types';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { 
   AcademicCapIcon, 
@@ -60,7 +60,7 @@ export const AdminWaitlistsPage: React.FC = () => {
       // Fetch details for each item and family
       const detailedGroups: GroupedWaitlist[] = [];
 
-      for (const [key, items] of Object.entries(grouped)) {
+      for (const [, items] of Object.entries(grouped)) {
         const firstEntry = items[0];
         let itemTitle = 'Unknown';
 
@@ -221,7 +221,9 @@ export const AdminWaitlistsPage: React.FC = () => {
         </div>
 
         {error && (
-          <Alert type="error" message={error} onClose={() => setError('')} className="mb-6" />
+          <div className="mb-6">
+            <Alert type="error" message={error} onClose={() => setError('')} />
+          </div>
         )}
 
         {groupedWaitlists.length === 0 ? (

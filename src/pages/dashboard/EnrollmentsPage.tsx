@@ -3,8 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { getOrdersByFamily } from '../../services/orders';
 import { getEnrollmentsByFamily } from '../../services/enrollments';
-import { getWaitlistByFamily } from '../../services/waitlist';
-import { Order, Enrollment, WaitlistEntry } from '../../types';
+import { Order, Enrollment } from '../../types';
 import { 
   Card, 
   CardHeader, 
@@ -29,7 +28,6 @@ export const EnrollmentsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [waitlistEntries, setWaitlistEntries] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -50,14 +48,12 @@ export const EnrollmentsPage: React.FC = () => {
       }
 
       try {
-        const [ordersData, enrollmentsData, waitlistData] = await Promise.all([
+        const [ordersData, enrollmentsData] = await Promise.all([
           getOrdersByFamily(familyData.id),
           getEnrollmentsByFamily(familyData.id),
-          getWaitlistByFamily(familyData.id),
         ]);
         setOrders(ordersData);
         setEnrollments(enrollmentsData);
-        setWaitlistEntries(waitlistData);
       } catch (err: any) {
         console.error('Error fetching data:', err);
         setError(err.message || 'Failed to load enrollments');
@@ -366,60 +362,6 @@ export const EnrollmentsPage: React.FC = () => {
           </Card>
         )}
 
-        {/* Waitlist Entries */}
-        {waitlistEntries.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Waitlist Entries</CardTitle>
-              <p className="text-sm text-neutral-600 mt-1">
-                You'll be notified when a spot becomes available
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {waitlistEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-start justify-between p-4 border border-blue-200 bg-blue-50 rounded-lg"
-                  >
-                    <div className="flex items-start flex-1">
-                      <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                        {getItemIcon(entry.itemType)}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-neutral-900 capitalize">
-                          {entry.itemTitle}
-                        </p>
-                        {entry.memberIds && entry.memberIds.length > 0 && (
-                          <p className="text-sm text-neutral-600 mt-1">
-                            Members: {getMemberNames(entry.memberIds)}
-                          </p>
-                        )}
-                        <p className="text-xs text-neutral-500 mt-1">
-                          Joined waitlist on{' '}
-                          {new Date(entry.createdAt).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="text-right mr-3">
-                        <p className="text-sm font-medium text-blue-600">
-                          Position #{entry.position}
-                        </p>
-                        <p className="text-xs text-blue-500">On Waitlist</p>
-                      </div>
-                      <Badge variant="info">{entry.status}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

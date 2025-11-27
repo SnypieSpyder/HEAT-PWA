@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { signUp, signInWithGoogle, logout } from '../../services/auth';
+import { signUp, signInWithGoogle } from '../../services/auth';
 import { Button, Input, Card, Alert } from '../../components/ui';
-import { auth } from '../../services/firebase';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const signupSchema = z.object({
@@ -26,16 +25,6 @@ export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  // Sign out any existing user when the signup page loads
-  // This handles the case where a previous signup failed partway through
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      console.log('Signing out existing user before signup');
-      logout().catch(err => console.error('Error signing out:', err));
-    }
-  }, []);
 
   const {
     register,

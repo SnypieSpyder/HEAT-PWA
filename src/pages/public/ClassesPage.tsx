@@ -70,7 +70,7 @@ export const ClassesPage: React.FC = () => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const filteredInstructors = instructors.filter(instructor =>
-    instructor.toLowerCase().includes(instructorSearch.toLowerCase())
+    instructor?.toLowerCase().includes(instructorSearch.toLowerCase())
   );
 
   const toggleDay = (day: string) => {
@@ -204,7 +204,7 @@ export const ClassesPage: React.FC = () => {
                                 <button
                                   key={instructor}
                                   onMouseDown={() => {
-                                    setInstructorSearch(instructor);
+                                    setInstructorSearch(instructor || '');
                                     setShowInstructorDropdown(false);
                                   }}
                                   className="w-full text-left px-4 py-2 hover:bg-primary-50 text-neutral-700 text-sm"

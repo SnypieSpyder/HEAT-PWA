@@ -118,17 +118,34 @@ export const addVolunteerSignup = async (
     const opportunity = await getVolunteerOpportunityById(opportunityId);
     if (!opportunity) throw new Error('Opportunity not found');
 
-    // Check if user is already signed up for ANY slot in this opportunity
-    const userIdentifiers = [signup.userId, signup.email].filter(Boolean);
+    // Check if THIS SPECIFIC USER is already signed up for ANY slot in this opportunity
+    // Only match on non-empty identifiers to allow children without email/accounts to volunteer
+    // Each person (identified by userId) can only sign up for one slot per opportunity
     const alreadySignedUp = opportunity.slots.some(slot => 
-      slot.signups.some(existingSignup => 
-        userIdentifiers.includes(existingSignup.userId) || 
-        userIdentifiers.includes(existingSignup.email)
-      )
+      slot.signups.some(existingSignup => {
+        // Only match on userId if both have valid, non-empty userIds
+        const userIdMatch = 
+          signup.userId && 
+          existingSignup.userId && 
+          signup.userId.trim() !== '' && 
+          existingSignup.userId.trim() !== '' &&
+          existingSignup.userId === signup.userId;
+
+        // Only match on email if both have valid, non-empty emails
+        // This is a fallback for users without accounts
+        const emailMatch = 
+          signup.email && 
+          existingSignup.email && 
+          signup.email.trim() !== '' && 
+          existingSignup.email.trim() !== '' &&
+          existingSignup.email === signup.email;
+
+        return userIdMatch || emailMatch;
+      })
     );
 
     if (alreadySignedUp) {
-      throw new Error('You are already signed up for a slot in this opportunity. You can only sign up for one slot per opportunity.');
+      throw new Error('This person is already signed up for a slot in this opportunity. Each person can only sign up for one slot per opportunity.');
     }
 
     // Check if the specific slot is full
@@ -186,6 +203,36 @@ export const removeVolunteerSignup = async (
 export const getActiveVolunteerOpportunities = async (): Promise<VolunteerOpportunity[]> => {
   try {
     return await getVolunteerOpportunities([where('status', '==', 'active')]);
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get volunteer opportunities for a specific event
+ */
+export const getVolunteerOpportunitiesByEventId = async (eventId: string): Promise<VolunteerOpportunity[]> => {
+  try {
+    return await getVolunteerOpportunities([
+      where('eventId', '==', eventId),
+      where('status', '==', 'active')
+    ]);
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get volunteer opportunities filtered for the public volunteer tab
+ * This includes non-event volunteers and event volunteers where listInTab is true
+ */
+export const getPublicVolunteerOpportunities = async (): Promise<VolunteerOpportunity[]> => {
+  try {
+    const allActive = await getActiveVolunteerOpportunities();
+    // Filter to show only:
+    // 1. Non-event volunteer opportunities (no eventId)
+    // 2. Event volunteer opportunities where listInTab is true
+    return allActive.filter(opp => !opp.eventId || opp.listInTab === true);
   } catch (error) {
     throw error;
   }

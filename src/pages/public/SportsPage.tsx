@@ -57,7 +57,7 @@ export const SportsPage: React.FC = () => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const filteredCoaches = coaches.filter(coach =>
-    coach.toLowerCase().includes(coachSearch.toLowerCase())
+    coach?.toLowerCase().includes(coachSearch.toLowerCase())
   );
 
   const toggleDay = (day: string) => {
@@ -188,7 +188,7 @@ export const SportsPage: React.FC = () => {
                                 <button
                                   key={coach}
                                   onMouseDown={() => {
-                                    setCoachSearch(coach);
+                                    setCoachSearch(coach || '');
                                     setShowCoachDropdown(false);
                                   }}
                                   className="w-full text-left px-4 py-2 hover:bg-primary-50 text-neutral-700 text-sm"

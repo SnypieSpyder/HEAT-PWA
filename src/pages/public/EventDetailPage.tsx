@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getEventById } from '../../services/events';
+import { getVolunteerOpportunitiesByEventId } from '../../services/volunteers';
+import { checkEnrollmentExists, createEnrollment } from '../../services/enrollments';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
-import { Event } from '../../types';
-import { Card, CardContent, Badge, Button, Spinner, Alert, MemberSelectionModal } from '../../components/ui';
-import { CalendarIcon, MapPinIcon, ClockIcon, TicketIcon, ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { Event, VolunteerOpportunity } from '../../types';
+import { Card, CardContent, Badge, Button, Spinner, Alert, MemberSelectionModal, EventVolunteerModal } from '../../components/ui';
+import { CalendarIcon, MapPinIcon, ClockIcon, TicketIcon, ArrowDownTrayIcon, CheckCircleIcon, HandRaisedIcon } from '@heroicons/react/24/outline';
 
 export const EventDetailPage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -18,6 +20,13 @@ export const EventDetailPage: React.FC = () => {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [selectedTicketPrice, setSelectedTicketPrice] = useState<number>(0);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [volunteerOpportunity, setVolunteerOpportunity] = useState<VolunteerOpportunity | null>(null);
+  const [showVolunteerModal, setShowVolunteerModal] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [checkingEnrollment, setCheckingEnrollment] = useState(true);
+  const [showVolunteerSignupPrompt, setShowVolunteerSignupPrompt] = useState(false);
+  const [enrolledMemberIds, setEnrolledMemberIds] = useState<string[]>([]);
+  const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -30,6 +39,14 @@ export const EventDetailPage: React.FC = () => {
         if (data && data.ticketTypes && data.ticketTypes.length > 0) {
           setSelectedTicketPrice(data.ticketTypes[0].price);
         }
+
+        // Fetch volunteer opportunities if enabled
+        if (data && data.volunteerEnabled) {
+          const opportunities = await getVolunteerOpportunitiesByEventId(eventId);
+          if (opportunities.length > 0) {
+            setVolunteerOpportunity(opportunities[0]);
+          }
+        }
       } catch (err) {
         setError('Failed to load event details');
       } finally {
@@ -39,6 +56,26 @@ export const EventDetailPage: React.FC = () => {
 
     fetchEvent();
   }, [eventId]);
+
+  useEffect(() => {
+    const checkUserEnrollment = async () => {
+      if (!eventId || !familyData) {
+        setCheckingEnrollment(false);
+        return;
+      }
+      
+      try {
+        const enrolled = await checkEnrollmentExists(familyData.id, eventId, 'event');
+        setIsEnrolled(enrolled);
+      } catch (err) {
+        console.error('Error checking enrollment:', err);
+      } finally {
+        setCheckingEnrollment(false);
+      }
+    };
+
+    checkUserEnrollment();
+  }, [eventId, familyData]);
 
   const handleRegister = (ticketPrice?: number) => {
     if (!currentUser) {
@@ -57,20 +94,95 @@ export const EventDetailPage: React.FC = () => {
     setShowMemberModal(true);
   };
 
-  const handleMemberSelection = (selectedMemberIds: string[]) => {
-    if (!eventData || !eventId) return;
+  const handleMemberSelection = async (selectedMemberIds: string[]) => {
+    if (!eventData || !eventId || !familyData) return;
 
-    addToCart({
-      itemId: eventId,
-      itemType: 'event',
-      title: eventData.title,
-      price: selectedTicketPrice,
-      quantity: selectedMemberIds.length,
-      memberIds: selectedMemberIds,
-    });
+    // Store enrolled member IDs for volunteer signup
+    setEnrolledMemberIds(selectedMemberIds);
 
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 3000);
+    // Check if the event is free (price is 0)
+    const isFree = selectedTicketPrice === 0;
+
+    if (isFree) {
+      // For free events, enroll directly without going through cart/checkout
+      setEnrolling(true);
+      try {
+        await createEnrollment({
+          familyId: familyData.id,
+          itemId: eventId,
+          itemType: 'event',
+          memberIds: selectedMemberIds,
+          status: 'active',
+          orderId: `FREE-${Date.now()}-${crypto.randomUUID()}`, // Generate unique ID for free enrollment
+        });
+
+        // Update enrollment status
+        setIsEnrolled(true);
+        setAddedToCart(true);
+        setTimeout(() => setAddedToCart(false), 3000);
+
+        // Show volunteer signup prompt if volunteers are enabled
+        if (eventData.volunteerEnabled && volunteerOpportunity) {
+          setShowVolunteerSignupPrompt(true);
+        }
+      } catch (err) {
+        console.error('Error enrolling in free event:', err);
+        setError('Failed to enroll in event. Please try again.');
+      } finally {
+        setEnrolling(false);
+      }
+    } else {
+      // For paid events, add to cart as usual
+      addToCart({
+        itemId: eventId,
+        itemType: 'event',
+        title: eventData.title,
+        price: selectedTicketPrice,
+        quantity: selectedMemberIds.length,
+        memberIds: selectedMemberIds,
+      });
+
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 3000);
+
+      // Show volunteer signup prompt if volunteers are enabled
+      if (eventData.volunteerEnabled && volunteerOpportunity) {
+        setShowVolunteerSignupPrompt(true);
+      }
+    }
+  };
+
+  const handleVolunteerSignupSuccess = async () => {
+    // Refresh volunteer opportunity data after successful signup
+    if (eventId) {
+      try {
+        const opportunities = await getVolunteerOpportunitiesByEventId(eventId);
+        if (opportunities.length > 0) {
+          setVolunteerOpportunity(opportunities[0]);
+        }
+      } catch (err) {
+        console.error('Error refreshing volunteer data:', err);
+      }
+    }
+    // Don't close the modal - let the user continue signing up or click "Confirm Signup"
+  };
+
+  const handleVolunteerPromptClose = () => {
+    // If volunteering is required, don't allow closing without signing up
+    if (eventData?.volunteerRequired) {
+      // Check if user has signed up for any slot
+      const hasSignedUp = volunteerOpportunity?.slots.some(slot =>
+        slot.signups.some(signup =>
+          signup.userId === currentUser?.uid || signup.email === currentUser?.email
+        )
+      );
+      
+      if (!hasSignedUp) {
+        alert('Volunteering is required for this event. Please sign up for a volunteer slot.');
+        return;
+      }
+    }
+    setShowVolunteerSignupPrompt(false);
   };
 
   if (loading) {
@@ -227,6 +339,46 @@ export const EventDetailPage: React.FC = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Volunteer Opportunities - Show if enabled and user is enrolled */}
+            {eventData.volunteerEnabled && isEnrolled && !checkingEnrollment && volunteerOpportunity && (
+              <Card className="border-l-4 border-l-primary-600">
+                <CardContent>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start">
+                      <HandRaisedIcon className="h-8 w-8 text-primary-600 mr-3 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-neutral-900 text-xl mb-2">
+                          Volunteer for This Event
+                        </h3>
+                        <p className="text-neutral-600 mb-4">
+                          Help make this event a success! We're looking for volunteers to assist with various tasks.
+                        </p>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {volunteerOpportunity.slots.map((slot) => {
+                            const spotsLeft = slot.capacity - slot.signups.length;
+                            return (
+                              <Badge 
+                                key={slot.id} 
+                                variant={spotsLeft > 0 ? 'info' : 'neutral'}
+                              >
+                                {slot.name}: {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => setShowVolunteerModal(true)}
+                    className="w-full"
+                  >
+                    View Volunteer Opportunities
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar - Registration */}
@@ -270,7 +422,8 @@ export const EventDetailPage: React.FC = () => {
                             size="sm"
                             className="w-full mt-2"
                             onClick={() => handleRegister(ticket.price)}
-                            disabled={isFull || !canPurchase}
+                            disabled={isFull || !canPurchase || enrolling}
+                            isLoading={enrolling && selectedTicketPrice === ticket.price}
                           >
                             {isFull ? 'Event Full' : !canPurchase ? 'Membership Required' : 'Register'}
                           </Button>
@@ -286,35 +439,42 @@ export const EventDetailPage: React.FC = () => {
                     </div>
 
                     {!canPurchase && currentUser && (
-                      <Alert 
-                        type="warning" 
-                        message="Active membership required to register for this event" 
-                        className="mb-4"
-                      />
+                      <div className="mb-4">
+                        <Alert 
+                          type="warning" 
+                          message="Active membership required to register for this event"
+                        />
+                      </div>
                     )}
 
                     {addedToCart ? (
                       <div className="w-full mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center text-green-700">
                         <CheckCircleIcon className="h-5 w-5 mr-2" />
-                        <span className="font-medium">Added to Cart!</span>
+                        <span className="font-medium">
+                          {minPrice === 0 ? 'Enrolled Successfully!' : 'Added to Cart!'}
+                        </span>
                       </div>
                     ) : (
                       <Button
                         className="w-full mb-4"
                         onClick={() => handleRegister(0)}
-                        disabled={isFull || !canPurchase}
+                        disabled={isFull || !canPurchase || enrolling}
+                        isLoading={enrolling}
                       >
                         {isFull ? 'Event Full' : !canPurchase ? 'Membership Required' : 'Register Now'}
                       </Button>
                     )}
 
-                    <Button
-                      variant="outline"
-                      className="w-full mb-4"
-                      onClick={() => navigate('/cart')}
-                    >
-                      View Cart
-                    </Button>
+                    {/* Only show View Cart button if the event is not free */}
+                    {minPrice > 0 && (
+                      <Button
+                        variant="outline"
+                        className="w-full mb-4"
+                        onClick={() => navigate('/cart')}
+                      >
+                        View Cart
+                      </Button>
+                    )}
                   </>
                 )}
 
@@ -372,6 +532,26 @@ export const EventDetailPage: React.FC = () => {
           itemType="event"
         />
       )}
+
+      {/* Volunteer Opportunities Modal - For enrolled users viewing from detail page */}
+      <EventVolunteerModal
+        isOpen={showVolunteerModal}
+        onClose={() => setShowVolunteerModal(false)}
+        opportunity={volunteerOpportunity}
+        onSignupSuccess={handleVolunteerSignupSuccess}
+        enrolledMemberIds={enrolledMemberIds}
+      />
+
+      {/* Volunteer Signup Prompt Modal - Shows after adding to cart */}
+      <EventVolunteerModal
+        isOpen={showVolunteerSignupPrompt}
+        onClose={handleVolunteerPromptClose}
+        opportunity={volunteerOpportunity}
+        onSignupSuccess={handleVolunteerSignupSuccess}
+        isRequired={eventData?.volunteerRequired || false}
+        isSignupPrompt={true}
+        enrolledMemberIds={enrolledMemberIds}
+      />
     </div>
   );
 };

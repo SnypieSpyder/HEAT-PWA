@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { logout } from '../../services/auth';
+import { getNavigationPages } from '../../services/pages';
+import { Page } from '../../types';
 import { 
   Bars3Icon, 
   XMarkIcon, 
@@ -19,6 +21,7 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [customNavPages, setCustomNavPages] = useState<Page[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
@@ -29,6 +32,20 @@ export const Header: React.FC = () => {
       console.error('Logout error:', error);
     }
   };
+
+  // Fetch custom navigation pages
+  useEffect(() => {
+    const fetchNavPages = async () => {
+      try {
+        const pages = await getNavigationPages();
+        setCustomNavPages(pages);
+      } catch (error) {
+        console.error('Error fetching navigation pages:', error);
+      }
+    };
+
+    fetchNavPages();
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -44,13 +61,23 @@ export const Header: React.FC = () => {
     }
   }, [profileDropdownOpen]);
 
-  const navigation = [
+  // Static navigation items
+  const staticNavigation = [
     { name: 'Classes', href: '/classes' },
     { name: 'Sports', href: '/sports' },
     { name: 'Events', href: '/events' },
     { name: 'Volunteer', href: '/volunteers' },
     { name: 'Calendar', href: '/calendar' },
     { name: 'About', href: '/about' },
+  ];
+
+  // Merge static and custom navigation pages
+  const navigation = [
+    ...staticNavigation,
+    ...customNavPages.map((page) => ({
+      name: page.title,
+      href: `/pages/${page.slug}`,
+    })),
   ];
 
   // Get profile picture - prefer family member photo for parents
@@ -75,7 +102,11 @@ export const Header: React.FC = () => {
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <span className="text-2xl font-bold text-primary-600">TB HEAT</span>
+              <img 
+                src="/Eagle-Logo.jpg" 
+                alt="Tampa Bay HEAT" 
+                className="h-12 w-auto"
+              />
             </Link>
           </div>
 

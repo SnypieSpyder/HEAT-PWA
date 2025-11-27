@@ -2,27 +2,37 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getEnrollmentsByFamily } from '../../services/enrollments';
+import { getWaitlistByFamily, removeFromWaitlist } from '../../services/waitlist';
 import { getClassById } from '../../services/classes';
 import { getSportById } from '../../services/sports';
 import { getEventById } from '../../services/events';
-import { Enrollment, Class, Sport, Event } from '../../types';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Spinner } from '../../components/ui';
+import { Enrollment, WaitlistEntry, Class, Sport, Event } from '../../types';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Spinner, ConfirmModal } from '../../components/ui';
 import {
   AcademicCapIcon,
   TrophyIcon,
   CalendarIcon,
   ClockIcon,
   CheckCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 interface EnrollmentWithDetails extends Enrollment {
   itemDetails?: Class | Sport | Event;
 }
 
+interface WaitlistEntryWithTitle extends WaitlistEntry {
+  itemTitle?: string;
+}
+
 export const DashboardPage: React.FC = () => {
   const { userData, familyData, loading: authLoading } = useAuth();
   const [enrollments, setEnrollments] = useState<EnrollmentWithDetails[]>([]);
+  const [waitlistEntries, setWaitlistEntries] = useState<WaitlistEntryWithTitle[]>([]);
+  const [removingWaitlist, setRemovingWaitlist] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [entryToRemove, setEntryToRemove] = useState<WaitlistEntryWithTitle | null>(null);
 
   useEffect(() => {
     const fetchEnrollments = async () => {
@@ -32,8 +42,12 @@ export const DashboardPage: React.FC = () => {
       }
       
       try {
-        const data = await getEnrollmentsByFamily(familyData.id);
-        const activeEnrollments = data.filter((e) => e.status === 'active');
+        const [enrollmentsData, waitlistData] = await Promise.all([
+          getEnrollmentsByFamily(familyData.id),
+          getWaitlistByFamily(familyData.id)
+        ]);
+        
+        const activeEnrollments = enrollmentsData.filter((e) => e.status === 'active');
         
         // Fetch details for each enrollment
         const enrollmentsWithDetails = await Promise.all(
@@ -41,11 +55,11 @@ export const DashboardPage: React.FC = () => {
             let itemDetails;
             try {
               if (enrollment.itemType === 'class') {
-                itemDetails = await getClassById(enrollment.itemId);
+                itemDetails = (await getClassById(enrollment.itemId)) || undefined;
               } else if (enrollment.itemType === 'sport') {
-                itemDetails = await getSportById(enrollment.itemId);
+                itemDetails = (await getSportById(enrollment.itemId)) || undefined;
               } else if (enrollment.itemType === 'event') {
-                itemDetails = await getEventById(enrollment.itemId);
+                itemDetails = (await getEventById(enrollment.itemId)) || undefined;
               }
             } catch (error) {
               console.error(`Error fetching details for ${enrollment.itemType} ${enrollment.itemId}:`, error);
@@ -53,8 +67,31 @@ export const DashboardPage: React.FC = () => {
             return { ...enrollment, itemDetails };
           })
         );
+
+        // Fetch titles for waitlist entries
+        const waitlistWithTitles: WaitlistEntryWithTitle[] = await Promise.all(
+          waitlistData.map(async (entry) => {
+            let itemTitle = 'Unknown';
+            try {
+              if (entry.itemType === 'class') {
+                const item = await getClassById(entry.itemId);
+                itemTitle = item?.title || 'Unknown';
+              } else if (entry.itemType === 'sport') {
+                const item = await getSportById(entry.itemId);
+                itemTitle = item?.title || 'Unknown';
+              } else if (entry.itemType === 'event') {
+                const item = await getEventById(entry.itemId);
+                itemTitle = item?.title || 'Unknown';
+              }
+            } catch (error) {
+              console.error(`Error fetching title for ${entry.itemType} ${entry.itemId}:`, error);
+            }
+            return { ...entry, itemTitle };
+          })
+        );
         
         setEnrollments(enrollmentsWithDetails);
+        setWaitlistEntries(waitlistWithTitles);
       } catch (error) {
         console.error('Error fetching enrollments:', error);
       } finally {
@@ -64,6 +101,32 @@ export const DashboardPage: React.FC = () => {
 
     fetchEnrollments();
   }, [familyData]);
+
+  const handleRemoveFromWaitlist = async () => {
+    if (!entryToRemove) return;
+
+    setRemovingWaitlist(entryToRemove.id);
+    try {
+      await removeFromWaitlist(entryToRemove.id);
+      // Refresh waitlist entries
+      if (familyData) {
+        const updatedWaitlist = await getWaitlistByFamily(familyData.id);
+        setWaitlistEntries(updatedWaitlist);
+      }
+      setConfirmModalOpen(false);
+    } catch (error) {
+      console.error('Error removing from waitlist:', error);
+      alert('Failed to remove from waitlist. Please try again.');
+    } finally {
+      setRemovingWaitlist(null);
+      setEntryToRemove(null);
+    }
+  };
+
+  const handleRemoveClick = (entry: WaitlistEntry) => {
+    setEntryToRemove(entry);
+    setConfirmModalOpen(true);
+  };
 
   if (authLoading) {
     return (
@@ -304,6 +367,55 @@ export const DashboardPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Waitlist */}
+            {waitlistEntries.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Waitlist</CardTitle>
+                    <Link to="/enrollments">
+                      <Button variant="ghost" size="sm">
+                        View All
+                      </Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {waitlistEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                      >
+                        <div className="flex items-center flex-1">
+                          <ClockIcon className="h-5 w-5 text-blue-600 mr-3 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-neutral-900 truncate">
+                              {entry.itemTitle}
+                            </p>
+                            <p className="text-sm text-neutral-600 capitalize">
+                              {entry.itemType} • {entry.memberIds.length} member(s)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3">
+                          <Badge variant="info">Waiting</Badge>
+                          <button
+                            onClick={() => handleRemoveClick(entry)}
+                            disabled={removingWaitlist === entry.id}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                            title="Remove from waitlist"
+                          >
+                            <XMarkIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -381,6 +493,22 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModalOpen}
+        onClose={() => {
+          setConfirmModalOpen(false);
+          setEntryToRemove(null);
+        }}
+        onConfirm={handleRemoveFromWaitlist}
+        title="Remove from Waitlist"
+        message={`Are you sure you want to remove yourself from the waitlist for "${entryToRemove?.itemTitle}"?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={removingWaitlist !== null}
+      />
     </div>
   );
 };

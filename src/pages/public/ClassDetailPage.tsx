@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getClassById } from '../../services/classes';
+import { createEnrollment } from '../../services/enrollments';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { Class } from '../../types';
@@ -20,8 +21,10 @@ export const ClassDetailPage: React.FC = () => {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [joinedWaitlist, setJoinedWaitlist] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState<any>(null);
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
     const fetchClass = async () => {
@@ -83,6 +86,8 @@ export const ClassDetailPage: React.FC = () => {
       const status = await checkWaitlistStatus(classId, 'class', familyData.id);
       setWaitlistStatus(status);
       setShowWaitlistModal(false);
+      setJoinedWaitlist(true);
+      setTimeout(() => setJoinedWaitlist(false), 3000);
     } catch (err) {
       setError('Failed to join waitlist. Please try again.');
     } finally {
@@ -90,20 +95,47 @@ export const ClassDetailPage: React.FC = () => {
     }
   };
 
-  const handleMemberSelection = (selectedMemberIds: string[]) => {
-    if (!classData || !classId) return;
+  const handleMemberSelection = async (selectedMemberIds: string[]) => {
+    if (!classData || !classId || !familyData) return;
 
-    addToCart({
-      itemId: classId,
-      itemType: 'class',
-      title: classData.title,
-      price: classData.pricing,
-      quantity: selectedMemberIds.length,
-      memberIds: selectedMemberIds,
-    });
+    // Check if the class is free (price is 0)
+    const isFree = classData.pricing === 0;
 
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 3000);
+    if (isFree) {
+      // For free classes, enroll directly without going through cart/checkout
+      setEnrolling(true);
+      try {
+        await createEnrollment({
+          familyId: familyData.id,
+          itemId: classId,
+          itemType: 'class',
+          memberIds: selectedMemberIds,
+          status: 'active',
+          orderId: `FREE-${Date.now()}-${crypto.randomUUID()}`, // Generate unique ID for free enrollment
+        });
+
+        setAddedToCart(true);
+        setTimeout(() => setAddedToCart(false), 3000);
+      } catch (err) {
+        console.error('Error enrolling in free class:', err);
+        setError('Failed to enroll in class. Please try again.');
+      } finally {
+        setEnrolling(false);
+      }
+    } else {
+      // For paid classes, add to cart as usual
+      addToCart({
+        itemId: classId,
+        itemType: 'class',
+        title: classData.title,
+        price: classData.pricing,
+        quantity: selectedMemberIds.length,
+        memberIds: selectedMemberIds,
+      });
+
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 3000);
+    }
   };
 
   if (loading) {
@@ -263,40 +295,59 @@ export const ClassDetailPage: React.FC = () => {
                 </div>
 
                 {!isMember && currentUser && (
-                  <Alert 
-                    type="warning" 
-                    message="Active membership required to enroll in classes" 
-                    className="mb-3"
-                  />
+                  <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start">
+                      <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm text-yellow-800 font-medium mb-1">
+                          Active membership required
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          An annual membership is needed to enroll in classes or join the waitlist.{' '}
+                          <Link to="/membership" className="underline hover:text-yellow-900 font-medium">
+                            Purchase Membership
+                          </Link>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {waitlistStatus ? (
                   <div className="w-full mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
-                    <div className="flex items-center justify-center mb-1">
+                    <div className="flex items-center justify-center">
                       <CheckCircleIcon className="h-5 w-5 mr-2" />
                       <span className="font-medium">On Waitlist</span>
                     </div>
-                    <p className="text-sm text-center">Position #{waitlistStatus.position}</p>
+                  </div>
+                ) : joinedWaitlist ? (
+                  <div className="w-full mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-700">
+                    <CheckCircleIcon className="h-5 w-5 mr-2" />
+                    <span className="font-medium">Joined Waitlist!</span>
                   </div>
                 ) : addedToCart ? (
                   <div className="w-full mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center text-green-700">
                     <CheckCircleIcon className="h-5 w-5 mr-2" />
-                    <span className="font-medium">Added to Cart!</span>
+                    <span className="font-medium">
+                      {classData.pricing === 0 ? 'Enrolled Successfully!' : 'Added to Cart!'}
+                    </span>
                   </div>
                 ) : (
                   <>
-                    {!isMember && (
-                      <Alert type="warning" message="Membership required to enroll in classes." className="mb-3" />
-                    )}
                     {isFull && !classData?.waitlistEnabled && (
-                      <Alert type="info" message="This class is currently full." className="mb-3" />
+                      <div className="mb-3">
+                        <Alert type="info" message="This class is currently full." />
+                      </div>
                     )}
                     
                     {!isFull && (
                       <Button
                         className="w-full mb-3"
                         onClick={handleAddToCart}
-                        disabled={!isMember}
+                        disabled={!isMember || enrolling}
+                        isLoading={enrolling}
                       >
                         {!isMember ? 'Membership Required' : 'Add to Cart'}
                       </Button>
@@ -312,24 +363,17 @@ export const ClassDetailPage: React.FC = () => {
                         {joiningWaitlist ? 'Joining...' : 'Join Waitlist'}
                       </Button>
                     )}
-
-                    {isFull && classData?.waitlistEnabled && !isMember && (
-                      <Alert type="warning" message="Membership required to join the waitlist." className="mb-3" />
-                    )}
                   </>
                 )}
 
-                <Button
-                  variant="outline"
-                  className="w-full mb-3"
-                  onClick={() => navigate('/cart')}
-                >
-                  View Cart
-                </Button>
-
-                {isFull && (
-                  <Button className="w-full" variant="outline">
-                    Join Waitlist
+                {/* Only show View Cart button if the class is not free */}
+                {classData.pricing > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full mb-3"
+                    onClick={() => navigate('/cart')}
+                  >
+                    View Cart
                   </Button>
                 )}
 

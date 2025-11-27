@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../../ui/Modal';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
+import { Alert } from '../../ui/Alert';
 import { ImageUpload } from '../common/ImageUpload';
-import { Event, TicketType } from '../../../types';
+import { Event, TicketType, VolunteerSlot } from '../../../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface EventFormProps {
@@ -11,6 +12,7 @@ interface EventFormProps {
   onClose: () => void;
   onSubmit: (data: Partial<Event>) => Promise<void>;
   initialData?: Event;
+  initialVolunteerSlots?: VolunteerSlot[];
   title: string;
 }
 
@@ -19,9 +21,12 @@ export const EventForm: React.FC<EventFormProps> = ({
   onClose,
   onSubmit,
   initialData,
+  initialVolunteerSlots = [],
   title,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [volunteerSlots, setVolunteerSlots] = useState<VolunteerSlot[]>([]);
   const [formData, setFormData] = useState<Partial<Event>>({
     title: '',
     description: '',
@@ -36,12 +41,18 @@ export const EventForm: React.FC<EventFormProps> = ({
     status: 'upcoming',
     allowNonMembers: true,
     waitlistEnabled: false,
+    volunteerEnabled: false,
+    volunteerRequired: false,
+    volunteerListInTab: false,
   });
 
   useEffect(() => {
     if (isOpen) {
+      setError(''); // Reset error when modal opens
       if (initialData) {
         setFormData(initialData);
+        // Load volunteer slots from initialVolunteerSlots when editing
+        setVolunteerSlots(initialVolunteerSlots || []);
       } else {
         // Reset form for new events
         setFormData({
@@ -58,23 +69,83 @@ export const EventForm: React.FC<EventFormProps> = ({
           status: 'upcoming',
           allowNonMembers: true,
           waitlistEnabled: false,
+          volunteerEnabled: false,
+          volunteerRequired: false,
+          volunteerListInTab: false,
         });
+        setVolunteerSlots([]);
       }
     }
-  }, [initialData, isOpen]);
+  }, [initialData, initialVolunteerSlots, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
+    // Validate volunteer settings
+    if (formData.volunteerEnabled && volunteerSlots.length === 0) {
+      setError('Please add at least one volunteer slot or disable volunteer opportunities.');
+      return;
+    }
+    
+    // Validate volunteer slots have required fields
+    if (formData.volunteerEnabled && volunteerSlots.length > 0) {
+      const invalidSlots = volunteerSlots.filter(slot => !slot.name || !slot.when || slot.capacity <= 0);
+      if (invalidSlots.length > 0) {
+        setError('Please fill in all volunteer slot fields (name, when, and capacity must be greater than 0).');
+        return;
+      }
+    }
+    
     setLoading(true);
     try {
-      // Remove undefined values before submitting to Firestore
-      const cleanedData = Object.fromEntries(
-        Object.entries(formData).filter(([_, value]) => value !== undefined)
-      );
+      // Remove undefined, null, and empty string values before submitting to Firestore
+      const cleanedData: any = {
+        title: formData.title || '',
+        description: formData.description || '',
+        date: formData.date || new Date(),
+        startTime: formData.startTime || '',
+        endTime: formData.endTime || '',
+        location: formData.location || '',
+        status: formData.status || 'upcoming',
+      };
+      
+      // Add optional fields only if they have valid values
+      if (formData.capacity && formData.capacity > 0) {
+        cleanedData.capacity = formData.capacity;
+      }
+      
+      if (formData.ticketTypes && formData.ticketTypes.length > 0) {
+        cleanedData.ticketTypes = formData.ticketTypes;
+      }
+      
+      if (formData.imageURL) {
+        cleanedData.imageURL = formData.imageURL;
+      }
+      
+      if (formData.flyerURL) {
+        cleanedData.flyerURL = formData.flyerURL;
+      }
+      
+      // Boolean fields - always include with explicit values
+      cleanedData.allowNonMembers = formData.allowNonMembers ?? true;
+      cleanedData.waitlistEnabled = formData.waitlistEnabled ?? false;
+      cleanedData.volunteerEnabled = formData.volunteerEnabled ?? false;
+      cleanedData.volunteerRequired = formData.volunteerRequired ?? false;
+      cleanedData.volunteerListInTab = formData.volunteerListInTab ?? false;
+      
+      // Add volunteer slots to the data if volunteers are enabled
+      if (formData.volunteerEnabled && volunteerSlots.length > 0) {
+        cleanedData.volunteerSlots = volunteerSlots;
+      }
+      
+      console.log('Submitting cleaned data:', cleanedData);
       await onSubmit(cleanedData);
       onClose();
-    } catch (error) {
+      setError('');
+    } catch (error: any) {
       console.error('Error submitting form:', error);
+      setError(error.message || 'Failed to submit event. Please check all fields and try again.');
     } finally {
       setLoading(false);
     }
@@ -109,9 +180,40 @@ export const EventForm: React.FC<EventFormProps> = ({
     });
   };
 
+  const addVolunteerSlot = () => {
+    const newSlot: VolunteerSlot = {
+      id: crypto.randomUUID(),
+      name: '',
+      when: '',
+      capacity: 0,
+      signups: [],
+    };
+    setVolunteerSlots([...volunteerSlots, newSlot]);
+  };
+
+  const removeVolunteerSlot = (id: string) => {
+    setVolunteerSlots(volunteerSlots.filter((s) => s.id !== id));
+  };
+
+  const updateVolunteerSlot = (id: string, field: keyof VolunteerSlot, value: any) => {
+    setVolunteerSlots(
+      volunteerSlots.map((s) =>
+        s.id === id ? { ...s, [field]: value } : s
+      )
+    );
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert 
+            type="error" 
+            message={error} 
+            onClose={() => setError('')}
+          />
+        )}
+        
         <Input
           label="Event Title"
           required
@@ -264,6 +366,124 @@ export const EventForm: React.FC<EventFormProps> = ({
             Allow non-members to purchase tickets
           </label>
         </div>
+
+        {/* Enable Volunteer Opportunities Checkbox */}
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="volunteerEnabled"
+            checked={formData.volunteerEnabled || false}
+            onChange={(e) => {
+              setFormData({ ...formData, volunteerEnabled: e.target.checked });
+              if (!e.target.checked) {
+                setFormData({ ...formData, volunteerEnabled: false, volunteerListInTab: false });
+                setVolunteerSlots([]);
+              }
+            }}
+            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+          />
+          <label htmlFor="volunteerEnabled" className="ml-2 block text-sm text-neutral-700">
+            Enable volunteer opportunities
+            <span className="block text-xs text-neutral-500">Allow participants to sign up as volunteers</span>
+          </label>
+        </div>
+
+        {/* Require Volunteering Checkbox - Only show if volunteers enabled */}
+        {formData.volunteerEnabled && (
+          <div className="flex items-center ml-6">
+            <input
+              type="checkbox"
+              id="volunteerRequired"
+              checked={formData.volunteerRequired || false}
+              onChange={(e) => setFormData({ ...formData, volunteerRequired: e.target.checked })}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+            />
+            <label htmlFor="volunteerRequired" className="ml-2 block text-sm text-neutral-700">
+              Require volunteering for participants
+              <span className="block text-xs text-neutral-500">Force all event participants to sign up for a volunteer slot</span>
+            </label>
+          </div>
+        )}
+
+        {/* List in Volunteer Tab Checkbox - Only show if volunteers enabled */}
+        {formData.volunteerEnabled && (
+          <div className="flex items-center ml-6">
+            <input
+              type="checkbox"
+              id="volunteerListInTab"
+              checked={formData.volunteerListInTab || false}
+              onChange={(e) => setFormData({ ...formData, volunteerListInTab: e.target.checked })}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+            />
+            <label htmlFor="volunteerListInTab" className="ml-2 block text-sm text-neutral-700">
+              List in volunteer tab for non-participants
+              <span className="block text-xs text-neutral-500">Show this opportunity to everyone, not just event participants</span>
+            </label>
+          </div>
+        )}
+
+        {/* Volunteer Slots Section - Only show if volunteers enabled */}
+        {formData.volunteerEnabled && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-neutral-700">Volunteer Slots</label>
+              <Button type="button" variant="outline" size="sm" onClick={addVolunteerSlot}>
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Add Slot
+              </Button>
+            </div>
+
+            {volunteerSlots.length > 0 ? (
+              <div className="space-y-3">
+                {volunteerSlots.map((slot) => (
+                  <div key={slot.id} className="p-3 border border-neutral-200 rounded-md space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Slot name (e.g., Help Set Up)"
+                        value={slot.name}
+                        onChange={(e) => updateVolunteerSlot(slot.id, 'name', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder="When (e.g., 20 min prior)"
+                        value={slot.when}
+                        onChange={(e) => updateVolunteerSlot(slot.id, 'when', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder="Capacity"
+                        type="number"
+                        min="0"
+                        value={slot.capacity !== undefined && slot.capacity !== null && !isNaN(slot.capacity) ? slot.capacity : ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            updateVolunteerSlot(slot.id, 'capacity', 0);
+                          } else {
+                            const num = parseInt(value, 10);
+                            updateVolunteerSlot(slot.id, 'capacity', isNaN(num) ? 0 : num);
+                          }
+                        }}
+                        className="w-24"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVolunteerSlot(slot.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-500 py-4 text-center border border-dashed border-neutral-300 rounded-md">
+                No volunteer slots added yet
+              </p>
+            )}
+          </div>
+        )}
 
         <ImageUpload
           key={`event-image-${initialData?.id || 'new'}`}

@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
-import { Card, CardContent, Badge, Button, Alert } from '../../components/ui';
-import { CheckIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { Card, CardContent, Button, Alert } from '../../components/ui';
+import { CheckIcon } from '@heroicons/react/24/outline';
 
 interface MembershipTier {
   id: string;
@@ -98,27 +98,30 @@ export const MembershipPage: React.FC = () => {
 
         {/* Current Membership Status */}
         {currentMembership && !isExpiringSoon && (
-          <Alert
-            type="success"
-            message={`Your membership is active until ${expiryDate?.toLocaleDateString()}`}
-            className="mb-8"
-          />
+          <div className="mb-8">
+            <Alert
+              type="success"
+              message={`Your membership is active until ${expiryDate?.toLocaleDateString()}`}
+            />
+          </div>
         )}
 
         {isExpiringSoon && (
-          <Alert
-            type="warning"
-            message={`Your membership expires on ${expiryDate?.toLocaleDateString()}. Renew now to continue your benefits!`}
-            className="mb-8"
-          />
+          <div className="mb-8">
+            <Alert
+              type="warning"
+              message={`Your membership expires on ${expiryDate?.toLocaleDateString()}. Renew now to continue your benefits!`}
+            />
+          </div>
         )}
 
         {addedToCart && (
-          <Alert
-            type="success"
-            message="Membership added to cart! Redirecting to checkout..."
-            className="mb-8"
-          />
+          <div className="mb-8">
+            <Alert
+              type="success"
+              message="Membership added to cart! Redirecting to checkout..."
+            />
+          </div>
         )}
 
         {/* Membership Tier */}

@@ -13,7 +13,7 @@ const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, familyData } = useAuth();
+  const { currentUser, familyData, refreshFamilyData } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const [error, setError] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
@@ -22,7 +22,7 @@ export const CheckoutPage: React.FC = () => {
   // Redirect to cart if not logged in or cart is empty (but not during payment processing)
   useEffect(() => {
     if (!currentUser || (cartItems.length === 0 && !isProcessingPayment)) {
-      navigate('/cart');
+    navigate('/cart');
     }
   }, [currentUser, cartItems.length, isProcessingPayment, navigate]);
 
@@ -34,8 +34,22 @@ export const CheckoutPage: React.FC = () => {
   const processingFee = cartTotal * 0.03;
   const total = cartTotal + processingFee;
 
-  const handlePaymentSuccess = (orderId: string) => {
+  const handlePaymentSuccess = async (orderId: string) => {
     setIsProcessingPayment(true);
+
+    // Check if the cart contains a membership
+    const hasMembership = cartItems.some(item => item.itemType === 'membership');
+    
+    // Refresh family data if a membership was purchased
+    if (hasMembership) {
+      try {
+        await refreshFamilyData();
+        console.log('Family data refreshed after membership purchase');
+      } catch (error) {
+        console.error('Error refreshing family data:', error);
+      }
+    }
+    
     clearCart();
     // Use setTimeout to ensure cart clears before navigation
     setTimeout(() => {

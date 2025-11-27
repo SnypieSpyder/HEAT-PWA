@@ -42,6 +42,8 @@ import { AdminInstructorsPage } from './pages/admin/AdminInstructorsPage';
 import { AdminFamiliesPage } from './pages/admin/AdminFamiliesPage';
 import { AdminVolunteersPage } from './pages/admin/AdminVolunteersPage';
 import { AdminWaitlistsPage } from './pages/admin/AdminWaitlistsPage';
+import { AdminPagesPage } from './pages/admin/AdminPagesPage';
+import { CustomPage } from './pages/public/CustomPage';
 
 function App() {
   return (
@@ -300,6 +302,26 @@ function App() {
                     <AdminWaitlistsPage />
                   </Layout>
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/pages"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminPagesPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Custom Pages (Dynamic - supports nested paths) */}
+            <Route
+              path="/pages/*"
+              element={
+                <Layout>
+                  <CustomPage />
+                </Layout>
               }
             />
 

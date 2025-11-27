@@ -104,6 +104,13 @@ export const AdminDashboardPage: React.FC = () => {
       color: 'indigo',
     },
     {
+      title: 'Manage Pages',
+      description: 'Create and customize pages',
+      icon: DocumentTextIcon,
+      link: '/admin/pages',
+      color: 'teal',
+    },
+    {
       title: 'Volunteer Signups',
       description: 'Manage volunteer opportunities',
       icon: DocumentTextIcon,
@@ -125,6 +132,7 @@ export const AdminDashboardPage: React.FC = () => {
     purple: 'bg-purple-100 text-purple-600',
     orange: 'bg-orange-100 text-orange-600',
     indigo: 'bg-indigo-100 text-indigo-600',
+    teal: 'bg-teal-100 text-teal-600',
     pink: 'bg-pink-100 text-pink-600',
     yellow: 'bg-yellow-100 text-yellow-600',
   };
