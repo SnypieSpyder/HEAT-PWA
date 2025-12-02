@@ -11,6 +11,7 @@ import {
   writeBatch,
   serverTimestamp,
   Timestamp,
+  limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { WaitlistEntry } from '../types';
@@ -28,20 +29,12 @@ export const joinWaitlist = async (
   memberIds: string[]
 ): Promise<string> => {
   try {
-    // Get current waitlist entries to determine position
     const waitlistRef = collection(db, 'waitlist');
-    const q = query(
-      waitlistRef,
-      where('itemId', '==', itemId),
-      where('itemType', '==', itemType),
-      where('organizationId', '==', ORGANIZATION_ID),
-      orderBy('position', 'desc')
-    );
-    const snapshot = await getDocs(q);
     
-    // New position is max + 1, or 1 if no entries
-    const maxPosition = snapshot.empty ? 0 : (snapshot.docs[0].data().position || 0);
-    const newPosition = maxPosition + 1;
+    // Use timestamp as position - this guarantees proper ordering without
+    // needing to query other families' entries (which would violate security rules)
+    // Admins can manually reorder if needed
+    const newPosition = Date.now();
 
     const waitlistData = {
       itemId,
@@ -106,7 +99,8 @@ export const getWaitlistByFamily = async (familyId: string): Promise<WaitlistEnt
       waitlistRef,
       where('familyId', '==', familyId),
       where('organizationId', '==', ORGANIZATION_ID),
-      where('status', '==', 'waiting')
+      where('status', '==', 'waiting'),
+      limit(100)
     );
     const snapshot = await getDocs(q);
 
@@ -141,7 +135,8 @@ export const checkWaitlistStatus = async (
       where('itemType', '==', itemType),
       where('familyId', '==', familyId),
       where('organizationId', '==', ORGANIZATION_ID),
-      where('status', '==', 'waiting')
+      where('status', '==', 'waiting'),
+      limit(1)
     );
     const snapshot = await getDocs(q);
 
@@ -244,6 +239,44 @@ export const getAllWaitlistEntries = async (): Promise<WaitlistEntry[]> => {
     });
   } catch (error) {
     console.error('Error fetching all waitlist entries:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the member IDs that are already on the waitlist for a specific item for a family
+ */
+export const getWaitlistedMemberIds = async (
+  itemId: string,
+  itemType: 'class' | 'sport' | 'event',
+  familyId: string
+): Promise<string[]> => {
+  try {
+    const waitlistRef = collection(db, 'waitlist');
+    const q = query(
+      waitlistRef,
+      where('itemId', '==', itemId),
+      where('itemType', '==', itemType),
+      where('familyId', '==', familyId),
+      where('organizationId', '==', ORGANIZATION_ID),
+      where('status', '==', 'waiting'),
+      limit(100)
+    );
+    const snapshot = await getDocs(q);
+
+    // Collect all member IDs from all waitlist entries
+    const memberIds: string[] = [];
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.memberIds && Array.isArray(data.memberIds)) {
+        memberIds.push(...data.memberIds);
+      }
+    });
+
+    // Return unique member IDs
+    return [...new Set(memberIds)];
+  } catch (error) {
+    console.error('Error fetching waitlisted member IDs:', error);
     throw error;
   }
 };

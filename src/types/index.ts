@@ -87,6 +87,7 @@ export interface Class {
   status: 'active' | 'full' | 'cancelled';
   category?: string;
   waitlistEnabled?: boolean;
+  allowParents?: boolean; // Whether parents/guardians can enroll (default: false, children only)
   organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;
@@ -118,6 +119,7 @@ export interface Sport {
   endDate: Date;
   status: 'active' | 'full' | 'cancelled';
   waitlistEnabled?: boolean;
+  allowParents?: boolean; // Whether parents/guardians can enroll (default: false, children only)
   organizationId?: string; // Multi-tenant support
   createdAt: Date;
   updatedAt: Date;

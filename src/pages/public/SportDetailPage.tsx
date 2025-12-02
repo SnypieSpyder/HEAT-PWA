@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getSportById } from '../../services/sports';
-import { createEnrollment } from '../../services/enrollments';
+import { createEnrollment, getEnrolledMemberIds } from '../../services/enrollments';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { Sport } from '../../types';
@@ -17,7 +17,7 @@ import {
   UserGroupIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { joinWaitlist, checkWaitlistStatus } from '../../services/waitlist';
+import { joinWaitlist, checkWaitlistStatus, getWaitlistedMemberIds } from '../../services/waitlist';
 
 export const SportDetailPage: React.FC = () => {
   const { sportId } = useParams<{ sportId: string }>();
@@ -35,6 +35,8 @@ export const SportDetailPage: React.FC = () => {
   const [waitlistStatus, setWaitlistStatus] = useState<any>(null);
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [enrolledMemberIds, setEnrolledMemberIds] = useState<string[]>([]);
+  const [waitlistedMemberIds, setWaitlistedMemberIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchSport = async () => {
@@ -44,10 +46,16 @@ export const SportDetailPage: React.FC = () => {
         const data = await getSportById(sportId);
         setSportData(data);
 
-        // Check if user is on waitlist
+        // Check if user is on waitlist and fetch member eligibility data
         if (familyData) {
-          const status = await checkWaitlistStatus(sportId, 'sport', familyData.id);
+          const [status, enrolled, waitlisted] = await Promise.all([
+            checkWaitlistStatus(sportId, 'sport', familyData.id),
+            getEnrolledMemberIds(sportId, 'sport', familyData.id),
+            getWaitlistedMemberIds(sportId, 'sport', familyData.id),
+          ]);
           setWaitlistStatus(status);
+          setEnrolledMemberIds(enrolled);
+          setWaitlistedMemberIds(waitlisted);
         }
       } catch (err) {
         setError('Failed to load sport details');
@@ -59,6 +67,23 @@ export const SportDetailPage: React.FC = () => {
     fetchSport();
   }, [sportId, familyData]);
 
+  // Calculate eligible members count
+  const eligibleMembersCount = useMemo(() => {
+    if (!familyData?.members) return 0;
+    
+    const allowParents = sportData?.allowParents ?? false;
+    
+    return familyData.members.filter((member) => {
+      // Check if already enrolled
+      if (enrolledMemberIds.includes(member.id)) return false;
+      // Check if already on waitlist
+      if (waitlistedMemberIds.includes(member.id)) return false;
+      // Check if parent/guardian when not allowed
+      if (!allowParents && (member.relationship === 'parent' || member.relationship === 'guardian')) return false;
+      return true;
+    }).length;
+  }, [familyData?.members, enrolledMemberIds, waitlistedMemberIds, sportData?.allowParents]);
+
   const handleAddToCart = () => {
     if (!currentUser) {
       navigate('/auth/login');
@@ -67,6 +92,11 @@ export const SportDetailPage: React.FC = () => {
 
     if (!familyData || familyData.members.length === 0) {
       setError('Please add family members to your profile before enrolling in sports.');
+      return;
+    }
+
+    if (eligibleMembersCount === 0) {
+      setError('No eligible family members to enroll. All members are either already enrolled, on the waitlist, or not eligible for this sport.');
       return;
     }
 
@@ -91,6 +121,10 @@ export const SportDetailPage: React.FC = () => {
           status: 'active',
           orderId: `FREE-${Date.now()}-${crypto.randomUUID()}`, // Generate unique ID for free enrollment
         });
+
+        // Refresh enrolled member IDs
+        const enrolled = await getEnrolledMemberIds(sportId, 'sport', familyData.id);
+        setEnrolledMemberIds(enrolled);
 
         setAddedToCart(true);
         setTimeout(() => setAddedToCart(false), 3000);
@@ -127,6 +161,11 @@ export const SportDetailPage: React.FC = () => {
       return;
     }
 
+    if (eligibleMembersCount === 0) {
+      setError('No eligible family members to add to the waitlist. All members are either already enrolled, on the waitlist, or not eligible for this sport.');
+      return;
+    }
+
     setShowWaitlistModal(true);
   };
 
@@ -136,8 +175,12 @@ export const SportDetailPage: React.FC = () => {
     setJoiningWaitlist(true);
     try {
       await joinWaitlist(sportId, 'sport', familyData.id, selectedMemberIds);
-      const status = await checkWaitlistStatus(sportId, 'sport', familyData.id);
+      const [status, waitlisted] = await Promise.all([
+        checkWaitlistStatus(sportId, 'sport', familyData.id),
+        getWaitlistedMemberIds(sportId, 'sport', familyData.id),
+      ]);
       setWaitlistStatus(status);
+      setWaitlistedMemberIds(waitlisted);
       setShowWaitlistModal(false);
       setJoinedWaitlist(true);
       setTimeout(() => setJoinedWaitlist(false), 3000);
@@ -170,6 +213,7 @@ export const SportDetailPage: React.FC = () => {
   const isFull = spotsRemaining <= 0;
   const enrollmentPercentage = (sportData.enrolled / sportData.capacity) * 100;
   const isMember = familyData?.membershipStatus === 'active';
+  const hasNoEligibleMembers = eligibleMembersCount === 0 && familyData?.members && familyData.members.length > 0;
 
   return (
     <div className="container-custom py-12">
@@ -185,14 +229,14 @@ export const SportDetailPage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
               <div className="flex flex-wrap gap-2 mb-4">
-                <Badge variant="primary" className="text-white border-white">
+                <Badge variant="primary" className="!bg-primary-600 !text-white border border-white/30">
                   {sportData.sportType}
                 </Badge>
-                <Badge variant="info" className="text-white border-white">
+                <Badge variant="info" className="!bg-blue-600 !text-white border border-white/30">
                   {sportData.season}
                 </Badge>
                 {sportData.skillLevel && (
-                  <Badge variant="neutral" className="text-white border-white">
+                  <Badge variant="neutral" className="!bg-neutral-700 !text-white border border-white/30">
                     {sportData.skillLevel}
                   </Badge>
                 )}
@@ -424,6 +468,24 @@ export const SportDetailPage: React.FC = () => {
                   </div>
                 )}
 
+                {hasNoEligibleMembers && isMember && (
+                  <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start">
+                      <svg className="h-5 w-5 text-amber-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm text-amber-800 font-medium mb-1">
+                          No eligible members
+                        </p>
+                        <p className="text-xs text-amber-700">
+                          All family members are already enrolled, on the waitlist, or not eligible for this sport.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {waitlistStatus ? (
                   <div className="w-full mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
                     <div className="flex items-center justify-center">
@@ -455,10 +517,10 @@ export const SportDetailPage: React.FC = () => {
                       <Button
                         className="w-full mb-3"
                         onClick={handleAddToCart}
-                        disabled={!isMember || enrolling}
+                        disabled={!isMember || enrolling || hasNoEligibleMembers}
                         isLoading={enrolling}
                       >
-                        {!isMember ? 'Membership Required' : 'Add to Cart'}
+                        {!isMember ? 'Membership Required' : hasNoEligibleMembers ? 'No Eligible Members' : 'Add to Cart'}
                       </Button>
                     )}
 
@@ -466,10 +528,10 @@ export const SportDetailPage: React.FC = () => {
                       <Button
                         className="w-full mb-3"
                         onClick={handleJoinWaitlist}
-                        disabled={joiningWaitlist}
+                        disabled={joiningWaitlist || hasNoEligibleMembers}
                         variant="outline"
                       >
-                        {joiningWaitlist ? 'Joining...' : 'Join Waitlist'}
+                        {joiningWaitlist ? 'Joining...' : hasNoEligibleMembers ? 'No Eligible Members' : 'Join Waitlist'}
                       </Button>
                     )}
                   </>
@@ -545,6 +607,9 @@ export const SportDetailPage: React.FC = () => {
           onConfirm={handleMemberSelection}
           title={sportData?.title || 'Sport'}
           itemType="sport"
+          enrolledMemberIds={enrolledMemberIds}
+          waitlistedMemberIds={waitlistedMemberIds}
+          allowParents={sportData?.allowParents ?? false}
         />
       )}
 
@@ -557,9 +622,11 @@ export const SportDetailPage: React.FC = () => {
           onConfirm={handleWaitlistConfirm}
           title={`${sportData?.title || 'Sport'} - Join Waitlist`}
           itemType="sport"
+          enrolledMemberIds={enrolledMemberIds}
+          waitlistedMemberIds={waitlistedMemberIds}
+          allowParents={sportData?.allowParents ?? false}
         />
       )}
     </div>
   );
 };
-

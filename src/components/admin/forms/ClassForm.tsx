@@ -48,6 +48,7 @@ export const ClassForm: React.FC<ClassFormProps> = ({
     status: 'active',
     category: '',
     waitlistEnabled: false,
+    allowParents: false,
   });
 
   useEffect(() => {
@@ -170,6 +171,20 @@ export const ClassForm: React.FC<ClassFormProps> = ({
           <label htmlFor="waitlistEnabled" className="ml-2 block text-sm text-neutral-700">
             Enable Waitlist
             <span className="block text-xs text-neutral-500">Allow members to join waitlist when class is full</span>
+          </label>
+        </div>
+
+        <div className="flex items-center mb-4">
+          <input
+            type="checkbox"
+            id="allowParents"
+            checked={formData.allowParents || false}
+            onChange={(e) => setFormData({ ...formData, allowParents: e.target.checked })}
+            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+          />
+          <label htmlFor="allowParents" className="ml-2 block text-sm text-neutral-700">
+            Allow Parent Enrollment
+            <span className="block text-xs text-neutral-500">By default, only children can enroll. Enable this to also allow parents/guardians.</span>
           </label>
         </div>
 

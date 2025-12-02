@@ -8,6 +8,7 @@ import {
   query,
   where,
   serverTimestamp,
+  limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Enrollment } from '../types';
@@ -21,7 +22,8 @@ export const getEnrollmentsByFamily = async (familyId: string): Promise<Enrollme
     const q = query(
       enrollmentsRef,
       where('organizationId', '==', ORGANIZATION_ID),
-      where('familyId', '==', familyId)
+      where('familyId', '==', familyId),
+      limit(100)
     );
     const snapshot = await getDocs(q);
     
@@ -117,6 +119,43 @@ export const checkEnrollmentExists = async (
     );
     const snapshot = await getDocs(q);
     return !snapshot.empty;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get the member IDs that are already enrolled in a specific item for a family
+ */
+export const getEnrolledMemberIds = async (
+  itemId: string,
+  itemType: 'class' | 'sport' | 'event',
+  familyId: string
+): Promise<string[]> => {
+  try {
+    const enrollmentsRef = collection(db, 'enrollments');
+    const q = query(
+      enrollmentsRef,
+      where('organizationId', '==', ORGANIZATION_ID),
+      where('familyId', '==', familyId),
+      where('itemId', '==', itemId),
+      where('itemType', '==', itemType),
+      where('status', 'in', ['active', 'waitlist']),
+      limit(100)
+    );
+    const snapshot = await getDocs(q);
+    
+    // Collect all member IDs from all enrollments
+    const memberIds: string[] = [];
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.memberIds && Array.isArray(data.memberIds)) {
+        memberIds.push(...data.memberIds);
+      }
+    });
+    
+    // Return unique member IDs
+    return [...new Set(memberIds)];
   } catch (error) {
     throw error;
   }
